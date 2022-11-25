@@ -7,16 +7,13 @@ import numpy as np
 import time
 import random
 
+
 class ImmuneRepertoire:
-    def __init__(self,fpath,lab,name,wrapper):
-        # get raw data
-        self.raw = pd.read_table(fpath,index_col=0)
+    def __init__(self, fpath, name, extract_func):
         # this could have flexibility to extract vdj and nucleotide residues
-        # store dict of wrapper funcs? 'get' function for keys
-        self.cdr3 = wrapper(self.raw) #, self.vdj, self.nr
+        self.cdr3 = extract_func(fpath)  # self.vdj, self.nr
         self.name = name
         self.nseq = len(self.cdr3)
-        self.lab = lab
         # need to add handling of there being no sequences!
 
     def get_count(self):
@@ -27,7 +24,7 @@ class ImmuneRepertoire:
         self.props = self.cdr3/self.count
         return self.props
 
-    def downsample(self, thresh, overwrite = True):
+    def downsample(self, thresh, overwrite=True):
         # sample sequences without replacement
         scodes = list(range(self.nseq))
         random.shuffle(scodes)
@@ -43,7 +40,6 @@ class ImmuneRepertoire:
             # overwrite count too
             self.get_count()
         return self.down
-
 
     # kmer function
     def kmerize(self, k, p):
@@ -132,12 +128,11 @@ class ImmuneRepertoire:
             return kmer_dict
 
 
-
 class IRDataset:
     # takes location of data and creates object containing matrix storing whole dataset,
     # labels , and provides class methods to transform in afew standard ways
     # take location of data, file names to include (optional), labels, wrapper function?????
-    def __init__(self,ddir,labs,wfunc,sn2inc = None,rs = None):
+    def __init__(self, ddir, lfunc, dfunc, largs=(None,), sn2inc=None, rs=None):
         self.ddir = ddir
         # get list of files to read
         if sn2inc is None:
@@ -151,16 +146,19 @@ class IRDataset:
             self.sn2fp(sn2inc)
         self.nsam = len(self.snames)
         # ensure labels are in same order, relies on labs being a series
-        self.labs = labs[self.snames]
-        self.wfunc = wfunc
+        #self.labs = labs[self.snames]
+        self.lfunc = lfunc
+        self.dfunc = dfunc
         # initialise preprocessing dict
         self.prepro = {}
         # set random seed if specified
-        if rs:
-            self.rs = rs
-            random.seed(rs)
+        self.rs = rs
+        if self.rs:
+            random.seed(self.rs)
         self.dropped = []
         self.drpd_labs = {}
+        # finally get all labels
+        self.labs = pd.Series(index=self.snames, data=[self.lfunc(sn,*largs) for sn in self.snames])
 
     @staticmethod
     def extr_sam_info(fn):
@@ -178,18 +176,16 @@ class IRDataset:
         self.snames = sorted(sn2inc, key=self.extr_sam_info)
         # use glob to get full file names including file extensions
         self.fpaths = [glob.glob(f"{os.path.join(self.ddir,sn)}.*")[0] for sn in self.snames]
-        # unsure if we need to overwrite fnames (if it exists)
 
 
     def get_counts(self):
         # generator of immune repertoires
-        self.counts = dict(((name,ImmuneRepertoire(fp,lab,name,self.wfunc).get_count()) for fp, lab, name in zip(self.fpaths,self.labs,self.snames)))
+        self.counts = dict(((name,ImmuneRepertoire(fp, name, self.dfunc).get_count())
+                            for fp, name in zip(self.fpaths,self.snames)))
         return self.counts
 
 
     def drop(self,sams):
-        # not ideal behaviour
-        # use sample names to avoid side-effects
         # find list of samples that remain after dropping specified ones
         rems = list(set(self.snames)-set(sams))
         # add removed samples to dropped samples list
@@ -202,12 +198,11 @@ class IRDataset:
         self.labs = self.labs[self.snames]
 
 
-
     def prep_dwnsmpl(self,thresh = None,overwrite = True):
         self.get_counts()
         if thresh == None:
             # if no threshold defined, set it as the minimum counts
-            self.d_thresh = np.amin(self.counts.values())
+            self.d_thresh = np.amin(list(self.counts.values()))
         else:
             # otherwise set the threshold using the defined parameter
             self.d_thresh = thresh
@@ -227,8 +222,8 @@ class IRDataset:
         self.prepro_name = f"d{self.d_thresh}_rs{self.rs}_{'p' if p else ''}{k}mers"
         # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
         # requires generator function
-        for fp, lab, name in zip(self.fpaths,self.labs,self.snames):
-            ir = ImmuneRepertoire(fp,lab,name,self.wfunc)
+        for fp, name in zip(self.fpaths,self.snames):
+            ir = ImmuneRepertoire(fp, name, self.dfunc)
             ir.downsample(self.d_thresh)
             ir.kmerize(k, p)
             yield ir.kmers
