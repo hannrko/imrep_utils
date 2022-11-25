@@ -137,7 +137,9 @@ class IRDataset:
         # get list of files to read
         if sn2inc is None:
             # just use all files in ddir  and sort them in ascending numerical order
-            self.fnames = sorted(os.listdir(ddir),key=self.extr_sam_info)
+            files_in_ddir = [d for d in os.listdir(ddir) if os.path.isfile(os.path.join(ddir,d))]
+            self.fnames = sorted(files_in_ddir,key=self.extr_sam_info)
+            print(self.fnames)
             # get sample names by removing fiule extensions
             self.snames = [fn.split('.')[0] for fn in self.fnames]
             # assemble sample paths from files
@@ -158,7 +160,9 @@ class IRDataset:
         self.dropped = []
         self.drpd_labs = {}
         # finally get all labels
-        self.labs = pd.Series(index=self.snames, data=[self.lfunc(sn,*largs) for sn in self.snames])
+        self.labs = pd.Series(index=self.snames, data=[self.lfunc(sn,*largs) for sn in self.snames]).replace('nan',np.NaN)
+        # drop samples with undefined labels
+        self.drop(self.labs[self.labs.isna()].index)
 
     @staticmethod
     def extr_sam_info(fn):
@@ -214,12 +218,12 @@ class IRDataset:
         self.drop(ds_drp)
 
     # generator function
-    def ds_kmers(self, k, p = None, thresh = None):
+    def ds_kmers(self, k, p = None, thresh = None, lab_spec = ""):
         # first prep for downsampling
         # first do with just minimum value but need to add option
         self.prep_dwnsmpl(thresh)
         # name our preprocessing d(thresh) p/(not) kmers
-        self.prepro_name = f"d{self.d_thresh}_rs{self.rs}_{'p' if p else ''}{k}mers"
+        self.prepro_name = f"{lab_spec}d{self.d_thresh}_rs{self.rs}_{'p' if p else ''}{k}mers"
         # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
         # requires generator function
         for fp, name in zip(self.fpaths,self.snames):
@@ -228,9 +232,9 @@ class IRDataset:
             ir.kmerize(k, p)
             yield ir.kmers
 
-    def gen2matrix(self,gf,args):
+    def gen2matrix(self,gf,kwargs):
         # produce matrix containing resulting data
-        gen = gf(*args)
+        gen = gf(**kwargs)
         # assemble the matrix
         outmat = pd.concat(gen,axis=1)
         outmat.columns = self.snames
