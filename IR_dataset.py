@@ -11,17 +11,17 @@ import random
 class ImmuneRepertoire:
     def __init__(self, fpath, name, extract_func):
         # this could have flexibility to extract vdj and nucleotide residues
-        self.cdr3 = extract_func(fpath)  # self.vdj, self.nr
+        self.seqtab = extract_func(fpath)  # self.vdj, self.nr
         self.name = name
-        self.nseq = len(self.cdr3)
+        self.nseq = len(self.seqtab)
         # need to add handling of there being no sequences!
 
     def get_count(self):
-        self.count = int(self.cdr3.sum())
+        self.count = int(self.seqtab.sum())
         return self.count
 
     def get_proportions(self):
-        self.props = self.cdr3/self.count
+        self.props = self.seqtab/self.count
         return self.props
 
     def downsample(self, thresh, overwrite=True):
@@ -29,14 +29,14 @@ class ImmuneRepertoire:
         scodes = list(range(self.nseq))
         random.shuffle(scodes)
         sam_scodes = scodes[:thresh]
-        sbins = np.concatenate(([0],np.cumsum(self.cdr3.values)))
+        sbins = np.concatenate(([0],np.cumsum(self.seqtab.values)))
         # right false as default gives correct behaviour
         sinds = np.digitize(sam_scodes,sbins)
         sindsu, dcounts = np.unique(sinds,return_counts=True)
-        self.down = pd.Series(index = self.cdr3.index[sindsu], data = dcounts)
+        self.down = pd.Series(index = self.seqtab.index[sindsu], data = dcounts)
         # optionally overwrite cdr3 matrix
         if overwrite:
-            self.cdr3 = self.down
+            self.seqtab = self.down
             # overwrite count too
             self.get_count()
         return self.down
@@ -45,7 +45,7 @@ class ImmuneRepertoire:
     def kmerize(self, k, p):
         all_kmers = {}
         short_kmers = []
-        for s, c in self.cdr3.items():
+        for s, c in self.seqtab.items():
             # kmerise each sequence
             kmers = self.split_into_kmers(s, c, k, p)
             if kmers is None:
@@ -184,7 +184,7 @@ class IRDataset:
 
     def get_counts(self):
         # generator of immune repertoires
-        self.counts = dict(((name,ImmuneRepertoire(fp, name, self.dfunc).get_count())
+        self.counts = dict(((name, ImmuneRepertoire(fp, name, self.dfunc).get_count())
                             for fp, name in zip(self.fpaths,self.snames)))
         return self.counts
 
@@ -232,6 +232,14 @@ class IRDataset:
             ir.kmerize(k, p)
             yield ir.kmers
 
+    def raw_clones(self, lab_spec=""):
+        self.prepro_name = f"{lab_spec}raw_clones"
+        # first use wrapper to get our clones
+        for fp, name in zip(self.fpaths, self.snames):
+            ir = ImmuneRepertoire(fp, name, self.dfunc)
+            # needs to change to reflect sequences generally
+            yield ir.seqtab
+
     def gen2matrix(self,gf,kwargs):
         # produce matrix containing resulting data
         gen = gf(**kwargs)
@@ -249,6 +257,7 @@ class IRDataset:
 
     def json_export(self,svpath):
         # make everything python-built-in types
+        # counts may not exist yet!
         sv_dict = dict(labs=self.labs.to_dict(), prepro_path=self.prepro_path, prepro_name=self.prepro_name,
                        raw_counts=self.counts, dropped=self.dropped, dropped_labs=self.drpd_labs)
         with open(svpath, 'w', encoding='utf-8') as f:
