@@ -143,6 +143,8 @@ class IRDataset:
         self.nsam = len(self.fpaths)
         self.lfunc = lfunc
         self.dfunc = dfunc
+        # we haven't calculated counts yet
+        self.count_flag = False
         # initialise preprocessing dict
         self.prepro = {}
         # set random seed if specified
@@ -151,6 +153,7 @@ class IRDataset:
             random.seed(self.rs)
         self.dropped = []
         self.drpd_labs = {}
+        self.drpd_counts = {}
         # if a name extractor is specified, get the names, otherwise remove file extensions
         if nfunc:
             self.snames = [nfunc(fn) for fn in self.fnames]
@@ -160,6 +163,7 @@ class IRDataset:
         self.labs = pd.Series(index=self.snames, data=[self.lfunc(sn, *largs) for sn in self.snames]).replace('nan', np.NaN)
         # drop samples with undefined labels
         self.drop(self.labs[self.labs.isna()].index)
+
 
     @staticmethod
     def extr_sam_info(fn):
@@ -174,12 +178,13 @@ class IRDataset:
         # generator of immune repertoires
         self.counts = dict(((name, ImmuneRepertoire(fp, name, self.dfunc).get_count())
                             for fp, name in zip(self.fpaths,self.snames)))
+        self.count_flag = True
         return self.counts
 
 
     def drop(self,sam_names):
         # find list of samples that remain after dropping specified ones
-        idx_del = [np.argwhere(self.snames)[0] == sn for sn in sam_names]
+        idx_del = [np.argwhere(self.snames[0] == sn) for sn in sam_names]
         # add removed samples to dropped samples list
         self.dropped.extend(sam_names)
         # then overwrite sample names, file names and file paths lists
@@ -190,10 +195,19 @@ class IRDataset:
         self.drpd_labs.update(self.labs[sam_names].to_dict())
         # overwrite labels
         self.labs = self.labs[self.snames]
+        # if we've calculated counts maybe we should delete relevant entries?
+        if self.count_flag:
+            # but we should have a dropped counts attribute to make sure we understand why they were dropped
+            self.drpd_counts.update(dict((sn, self.counts[sn]) for sn in sam_names))
+            for sn in sam_names:
+                self.counts.pop(sn)
 
 
-    def prep_dwnsmpl(self,thresh = None,overwrite = True):
-        self.get_counts()
+
+
+    def prep_dwnsmpl(self,thresh = None):
+        if self.count_flag == False:
+            self.get_counts()
         if thresh == None:
             # if no threshold defined, set it as the minimum counts
             self.d_thresh = np.amin(list(self.counts.values()))
@@ -203,8 +217,6 @@ class IRDataset:
         # samples less deep than threshold are dropped
         drp_ind = np.array(list(self.counts.values())) < self.d_thresh
         ds_drp = np.array(self.snames)[drp_ind]
-        # worried about drp_snames being overwritten?
-        # could add some appending behaviour later
         self.drop(ds_drp)
 
     # generator function
@@ -245,11 +257,14 @@ class IRDataset:
         prepro.to_csv(self.prepro_path)
         return prepro
 
-    def json_export(self,svpath):
+    def json_export(self, svpath):
         # make everything python-built-in types
         # counts may not exist yet!
         sv_dict = dict(labs=self.labs.to_dict(), prepro_path=self.prepro_path, prepro_name=self.prepro_name,
-                       raw_counts=self.counts, dropped=self.dropped, dropped_labs=self.drpd_labs)
+                       dropped=self.dropped, dropped_labs=self.drpd_labs)
+        if self.count_flag:
+            sv_dict["raw_counts"] = self.counts
+            sv_dict["dropped_counts"] = self.drpd_counts
         with open(svpath, 'w', encoding='utf-8') as f:
             json.dump(sv_dict, f, ensure_ascii=False, indent=4)
 
