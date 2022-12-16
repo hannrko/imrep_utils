@@ -132,23 +132,15 @@ class IRDataset:
     # takes location of data and creates object containing matrix storing whole dataset,
     # labels , and provides class methods to transform in afew standard ways
     # take location of data, file names to include (optional), labels, wrapper function?????
-    def __init__(self, ddir, lfunc, dfunc, largs=(None,), sn2inc=None, rs=None):
+    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(None,), rs=None):
         self.ddir = ddir
         # get list of files to read
-        if sn2inc is None:
-            # just use all files in ddir  and sort them in ascending numerical order
-            files_in_ddir = [d for d in os.listdir(ddir) if os.path.isfile(os.path.join(ddir,d))]
-            self.fnames = sorted(files_in_ddir,key=self.extr_sam_info)
-            print(self.fnames)
-            # get sample names by removing fiule extensions
-            self.snames = [fn.split('.')[0] for fn in self.fnames]
-            # assemble sample paths from files
-            self.fpaths = [os.path.join(ddir,d) for d in self.fnames]
-        else:
-            self.sn2fp(sn2inc)
-        self.nsam = len(self.snames)
-        # ensure labels are in same order, relies on labs being a series
-        #self.labs = labs[self.snames]
+        # just use all files in ddir  and sort them in ascending numerical order
+        files_in_ddir = [d for d in os.listdir(ddir) if os.path.isfile(os.path.join(ddir,d))]
+        self.fnames = sorted(files_in_ddir,key=self.extr_sam_info)
+        # assemble sample paths from files
+        self.fpaths = [os.path.join(ddir,d) for d in self.fnames]
+        self.nsam = len(self.fpaths)
         self.lfunc = lfunc
         self.dfunc = dfunc
         # initialise preprocessing dict
@@ -159,8 +151,13 @@ class IRDataset:
             random.seed(self.rs)
         self.dropped = []
         self.drpd_labs = {}
+        # if a name extractor is specified, get the names, otherwise remove file extensions
+        if nfunc:
+            self.snames = [nfunc(fn) for fn in self.fnames]
+        else:
+            self.snames = [fn.split(".")[0] for fn in self.fnames]
         # finally get all labels
-        self.labs = pd.Series(index=self.snames, data=[self.lfunc(sn,*largs) for sn in self.snames]).replace('nan',np.NaN)
+        self.labs = pd.Series(index=self.snames, data=[self.lfunc(sn, *largs) for sn in self.snames]).replace('nan', np.NaN)
         # drop samples with undefined labels
         self.drop(self.labs[self.labs.isna()].index)
 
@@ -173,15 +170,6 @@ class IRDataset:
         return mlab, num
 
 
-    def sn2fp(self,sn2inc):
-        # could add exception handling here when fn2inc is not in the form we'd expect
-        # assume sn2inc is list, we already know names of samples
-        # sort them in numerical order
-        self.snames = sorted(sn2inc, key=self.extr_sam_info)
-        # use glob to get full file names including file extensions
-        self.fpaths = [glob.glob(f"{os.path.join(self.ddir,sn)}.*")[0] for sn in self.snames]
-
-
     def get_counts(self):
         # generator of immune repertoires
         self.counts = dict(((name, ImmuneRepertoire(fp, name, self.dfunc).get_count())
@@ -189,15 +177,17 @@ class IRDataset:
         return self.counts
 
 
-    def drop(self,sams):
+    def drop(self,sam_names):
         # find list of samples that remain after dropping specified ones
-        rems = list(set(self.snames)-set(sams))
+        idx_del = [np.argwhere(self.snames)[0] == sn for sn in sam_names]
         # add removed samples to dropped samples list
-        self.dropped.extend(sams)
-        # then overwrite sample names and file paths lists
-        self.sn2fp(rems)
+        self.dropped.extend(sam_names)
+        # then overwrite sample names, file names and file paths lists
+        self.fnames = np.delete(self.fnames, idx_del)
+        self.fpaths = np.delete(self.fpaths, idx_del)
+        self.snames = np.delete(self.snames, idx_del)
         # save labels of dropped samples
-        self.drpd_labs.update(self.labs[sams].to_dict())
+        self.drpd_labs.update(self.labs[sam_names].to_dict())
         # overwrite labels
         self.labs = self.labs[self.snames]
 
