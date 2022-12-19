@@ -132,7 +132,7 @@ class IRDataset:
     # takes location of data and creates object containing matrix storing whole dataset,
     # labels , and provides class methods to transform in afew standard ways
     # take location of data, file names to include (optional), labels, wrapper function?????
-    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(None,), rs=None):
+    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(None,), nargs=(None,), rs=None):
         self.ddir = ddir
         # get list of files to read
         # just use all files in ddir  and sort them in ascending numerical order
@@ -154,13 +154,14 @@ class IRDataset:
         self.dropped = []
         self.drpd_labs = {}
         self.drpd_counts = {}
+        # finally get all labels
+        self.labs = pd.Series(index=self.fnames, data=[self.lfunc(sn, *largs) for sn in self.fnames]).replace('nan', np.NaN)
         # if a name extractor is specified, get the names, otherwise remove file extensions
         if nfunc:
-            self.snames = [nfunc(fn) for fn in self.fnames]
+            self.snames = [nfunc(fn, *nargs) for fn in self.fnames]
         else:
             self.snames = [fn.split(".")[0] for fn in self.fnames]
-        # finally get all labels
-        self.labs = pd.Series(index=self.snames, data=[self.lfunc(sn, *largs) for sn in self.snames]).replace('nan', np.NaN)
+        self.labs.index = self.snames
         # drop samples with undefined labels
         self.drop(self.labs[self.labs.isna()].index)
 
