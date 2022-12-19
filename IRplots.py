@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib as mpl
+import os
 
 class IRPlots:
     def __init__(self,json_fn,colour_func,seq_inds,neat_figs=False,save=None):
@@ -23,8 +24,10 @@ class IRPlots:
             mpl.rcParams['axes.spines.right'] = False
             mpl.rcParams['axes.spines.top'] = False
         if save:
+            self.sv_flag = True
             self.sv_path = save
-
+        else:
+            self.sv_flag=False
         # set totc flag
         self.totc_flag = False
         # if we don't have proportions already, get proportions
@@ -33,20 +36,27 @@ class IRPlots:
         else:
             self.props = self.data/self.data.sum()
 
-
     # Counts plot
     def plot_totc(self, title=None, fig_kwargs={}):
         self.totc = self.data.sum()
         plt.figure(**fig_kwargs)
         plt.bar(self.totc.index, self.totc.values, color=self.colours.values)
         plt.ylabel('Total productive sequences')
-        #plt.xlabel('Sample')
         plt.xticks(rotation=90)
         plt.margins(x=0)
-        if title:
-            plt.title(title)
         plt.tight_layout()
-        plt.show()
+        if self.sv_flag:
+            # convert title to filename
+            if title:
+                fn = title.replace(" ","_") + ".png"
+            else:
+                fn = "totc_prod_bar.png"
+            # save figure in directory specified
+            plt.savefig(os.path.join(self.sv_path,fn))
+        else:
+            if title:
+                plt.title(title)
+            plt.show()
 
     # total counts histogram
     def totc_hist(self, bins, colour = 'k', by_class=None, title=None, fig_kwargs={}):
@@ -60,9 +70,18 @@ class IRPlots:
         plt.xlabel('Total productive sequences')
         plt.ylabel('Number of samples')
         plt.xticks(rotation=90)
-        if title:
-            plt.title(title)
-        plt.show()
+        if self.sv_flag:
+            # convert title to filename
+            if title:
+                fn = title.replace(" ","_") + ".png"
+            else:
+                fn = "totc_prod_hist.png"
+            # save figure in directory specified
+            plt.savefig(os.path.join(self.sv_path,fn))
+        else:
+            if title:
+                plt.title(title)
+            plt.show()
 
 
     # Abundance plot
@@ -73,10 +92,19 @@ class IRPlots:
         plt.ylabel('Clone frequency')
         plt.xlabel('Clone rank')
         plt.margins(x=0)
-        if title:
-            plt.title(title)
         plt.legend()
-        plt.show()
+        if self.sv_flag:
+            # convert title to filename
+            if title:
+                fn = title.replace(" ", "_") + ".png"
+            else:
+                fn = "top_clone_abund.png"
+            # save figure in directory specified
+            plt.savefig(os.path.join(self.sv_path, fn))
+        else:
+            if title:
+                plt.title(title)
+            plt.show()
 
     # Diversity plot
     def plot_div(self, divfunc, title=None, fig_kwargs={}):
@@ -85,13 +113,21 @@ class IRPlots:
         plt.figure(**fig_kwargs)
         plt.bar(div.index, div.values, color=self.colours.values)
         plt.ylabel('Diversity')
-        #plt.xlabel('Sample')
         plt.xticks(rotation=90)
         plt.margins(x=0)
-        if title:
-            plt.title(title)
         plt.tight_layout()
-        plt.show()
+        if self.sv_flag:
+            # convert title to filename
+            if title:
+                fn = title.replace(" ", "_") + ".png"
+            else:
+                fn = "div_bar.png"
+            # save figure in directory specified
+            plt.savefig(os.path.join(self.sv_path, fn))
+        else:
+            if title:
+                plt.title(title)
+            plt.show()
 
     @staticmethod
     def richness(counts):
@@ -132,14 +168,23 @@ class IRPlots:
         plt.margins(x=0)
         plt.xlabel("q")
         plt.legend()
-        if title:
-            plt.title(title)
         plt.tight_layout()
-        plt.show()
+        if self.sv_flag:
+            # convert title to filename
+            if title:
+                fn = title.replace(" ", "_") + ".png"
+            else:
+                fn = "div_profile.png"
+            # save figure in directory specified
+            plt.savefig(os.path.join(self.sv_path, fn))
+        else:
+            if title:
+                plt.title(title)
+            plt.show()
 
 
     # VJ heatmap
-    def seg_heatmap(self,col_name,fig_kwargs={}):
+    def seg_heatmap(self,col_name,title=None,fig_kwargs={}):
         plt.figure(**fig_kwargs)
         seg_counts = self.props.groupby(by=col_name).sum().T
         hm = sns.heatmap(seg_counts, vmin=0, vmax=1, cmap='binary', linewidth=0.5, square=True, linecolor=(0,0,0), cbar=False, xticklabels=True)
@@ -149,7 +194,18 @@ class IRPlots:
             spine.set_visible(True)
         hm.tick_params(left=False, bottom=False)
         hm.set(xlabel=None)
-        plt.show()
+        if self.sv_flag:
+            # convert title to filename
+            if title:
+                fn = title.replace(" ", "_") + ".png"
+            else:
+                fn = col_name + "_heatmap.png"
+            # save figure in directory specified
+            plt.savefig(os.path.join(self.sv_path, fn))
+        else:
+            if title:
+                plt.title(title)
+            plt.show()
 
     # VJ boxplots
     def seg_boxplots(self,class_names, colours, seg_name=None,col_name=None):
@@ -170,7 +226,13 @@ class IRPlots:
                         vert=True, patch_artist=True, labels=class_names,flierprops=fps, medianprops=mps)
             for patch, color in zip(bp['boxes'], colours):
                 patch.set_facecolor(color)
-            plt.show()
+            if self.sv_flag:
+                # convert title to filename
+                fn = s.replace("/",u'\u2215') + ".png"
+                # save figure in directory specified
+                plt.savefig(os.path.join(self.sv_path, col_name+"_boxplots", fn))
+            else:
+                plt.show()
 
     # top seqs
     def plot_top(self, n_top, spec_lab=None, title=None, fig_kwargs={}):
@@ -195,7 +257,16 @@ class IRPlots:
         plt.ylabel("Proportion of repertoire")
         plt.margins(x=0)
         plt.legend()
-        if title is not None:
-            plt.title(title)
         plt.tight_layout()
-        plt.show()
+        if self.sv_flag:
+            # convert title to filename
+            if title:
+                fn = title.replace(" ", "_") + ".png"
+            else:
+                fn = "top_seqs.png"
+            # save figure in directory specified
+            plt.savefig(os.path.join(self.sv_path, fn))
+        else:
+            if title:
+                plt.title(title)
+            plt.show()
