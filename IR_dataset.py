@@ -9,18 +9,21 @@ import random
 
 
 class ImmuneRepertoire:
+    # defines a single immune repertoire sample and any preprocessing operations that can be applied as class functions
     def __init__(self, fpath, name, extract_func):
-        # this could have flexibility to extract vdj and nucleotide residues
-        self.seqtab = extract_func(fpath)  # self.vdj, self.nr
+        # this has flexibility to extract any sequence attribute from raw data
+        # as long as appropriate extract_func is specified
+        self.seqtab = extract_func(fpath)
         self.name = name
         self.nseq = len(self.seqtab)
-        # need to add handling of there being no sequences!
 
     def get_count(self):
+        # get total sequences in repertoire
         self.count = int(self.seqtab.sum())
         return self.count
 
     def get_proportions(self):
+        # get proportions of sequences that make up repertoire
         self.props = self.seqtab/self.count
         return self.props
 
@@ -43,6 +46,8 @@ class ImmuneRepertoire:
 
     # kmer function
     def kmerize(self, k, p):
+        # split sequences into short overlapping segments
+        # only appropriate where we specify extract_func that gives a single amino acid or nucleotide sequence index
         all_kmers = {}
         short_kmers = []
         for s, c in self.seqtab.items():
@@ -68,7 +73,8 @@ class ImmuneRepertoire:
 
     @staticmethod
     def get_AA_pos_fracs(l_seq,n_pos):
-        # initlaise aa_pos
+        # find position of a letter in a sequence
+        # initialise aa_pos
         aa_pos = np.zeros((0,l_seq))
         prev = np.zeros(l_seq)
         fracs = np.linspace(0,1,l_seq+1)
@@ -129,14 +135,23 @@ class ImmuneRepertoire:
 
 
 class IRDataset:
-    # takes location of data and creates object containing matrix storing whole dataset,
-    # labels , and provides class methods to transform in afew standard ways
-    # take location of data, file names to include (optional), labels, wrapper function?????
+    # initialises immune repertoire dataset by getting paths to sample files and loading other necessary metadata
+    # defines generator functions with series of steps to apply to repertoires
+    # assembles dataset matrix by specifying generator function to execute in gen2matrix
     def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(None,), nargs=(None,), rs=None):
+        # ddir is the directory that stores repertoire files and nothing else
+        # lfunc exracts labels from file names
+        # dfunc extracts relevant information from repertoire files
+        # nfunc is optional and replaces filenames with sample names
+        # largs and nargs can supply additional variables to lfunc and nfunc respectively
+        # rs sets random seed which can be used in downsampling
         self.ddir = ddir
         # get list of files to read
         # just use all files in ddir  and sort them in ascending numerical order
+        # we expect filenames to start with an identifier which contains letter(s) and a number
+        # this should be separated from the rest of the filename with - or _, or be the entire filename
         files_in_ddir = [d for d in os.listdir(ddir) if os.path.isfile(os.path.join(ddir,d))]
+        # sort by letter part of identifier and numerical part, letter part may refer to label or sample or otherwise
         self.fnames = sorted(files_in_ddir,key=self.extr_sam_info)
         # assemble sample paths from files
         self.fpaths = [os.path.join(ddir,d) for d in self.fnames]
@@ -155,7 +170,7 @@ class IRDataset:
         self.drpd_labs = {}
         self.drpd_counts = {}
         # finally get all labels
-        self.labs = pd.Series(index=self.fnames, data=[self.lfunc(sn, *largs) for sn in self.fnames]).replace('nan', np.NaN)
+        self.labs = pd.Series(index=self.fnames, data=[self.lfunc(fn, *largs) for fn in self.fnames]).replace('nan', np.NaN)
         # if a name extractor is specified, get the names, otherwise remove file extensions
         if nfunc:
             self.snames = [nfunc(fn, *nargs) for fn in self.fnames]
@@ -165,26 +180,27 @@ class IRDataset:
         # drop samples with undefined labels
         self.drop(self.labs[self.labs.isna()].index)
 
-
     @staticmethod
     def extr_sam_info(fn):
-        # get sam name
+        # fn is a filename
+        # get sample identifier
         snm = re.split('_|-|\\.',fn)[0]
+        # extract numerical part
         num = int(re.findall(r'\d+', snm)[0])
+        # extract letter part
         mlab = re.findall(r'[A-Za-z]+',snm)[0]
         return mlab, num
 
-
     def get_counts(self):
-        # generator of immune repertoires
+        # dict from generator that executes get_count method for all repertoires
         self.counts = dict(((name, ImmuneRepertoire(fp, name, self.dfunc).get_count())
                             for fp, name in zip(self.fpaths,self.snames)))
         self.count_flag = True
         return self.counts
 
-
     def drop(self,sam_names):
-        # find list of samples that remain after dropping specified ones
+        # remove samples in list sam_names from dataset
+        # get indices of samples to drop
         idx_del = [np.argwhere(self.snames[0] == sn) for sn in sam_names]
         # add removed samples to dropped samples list
         self.dropped.extend(sam_names)
@@ -203,10 +219,9 @@ class IRDataset:
             for sn in sam_names:
                 self.counts.pop(sn)
 
-
-
-
     def prep_dwnsmpl(self,thresh = None):
+        # prepare downsampling
+        # use threshold to determine which samples should be dropped due to insufficient counts
         if self.count_flag == False:
             self.get_counts()
         if thresh == None:
@@ -222,6 +237,7 @@ class IRDataset:
 
     # generator function
     def ds_kmers(self, k, p = None, thresh = None, lab_spec = ""):
+        # downsample sequences, convert to kmers
         # first prep for downsampling
         # first do with just minimum value but need to add option
         self.prep_dwnsmpl(thresh)
@@ -236,8 +252,10 @@ class IRDataset:
             yield ir.kmers
 
     def raw_clones(self, lab_spec=""):
+        # don't preprocess repertoires
+        # this is helpful for plotting repertoire summaries
         self.prepro_name = f"{lab_spec}raw_clones"
-        # first use wrapper to get our clones
+        # get repertoires, extracting relevant information with dfunc
         for fp, name in zip(self.fpaths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
             # needs to change to reflect sequences generally
@@ -249,7 +267,7 @@ class IRDataset:
         # assemble the matrix
         outmat = pd.concat(gen,axis=1)
         outmat.columns = self.snames
-        # save matrix to location, store location?
+        # save matrix to location, store location
         self.prepro_dir = os.path.join(self.ddir,"preprocessed")
         if not os.path.isdir(self.prepro_dir):
             os.makedirs(self.prepro_dir)
@@ -259,8 +277,8 @@ class IRDataset:
         return prepro
 
     def json_export(self, svpath):
+        # store all information we need about the preprocessing as a json file
         # make everything python-built-in types
-        # counts may not exist yet!
         sv_dict = dict(labs=self.labs.to_dict(), prepro_path=self.prepro_path, prepro_name=self.prepro_name,
                        dropped=self.dropped, dropped_labs=self.drpd_labs)
         if self.count_flag:
@@ -269,9 +287,6 @@ class IRDataset:
         with open(svpath, 'w', encoding='utf-8') as f:
             json.dump(sv_dict, f, ensure_ascii=False, indent=4)
 
-    # load in matrix instead of calling gen2matrix
     def load_prepro(self):
+        # load in matrix instead of calling gen2matrix again
         self.prepro = pd.read_csv(self.prepro_path, index_col = 0)
-
-
-
