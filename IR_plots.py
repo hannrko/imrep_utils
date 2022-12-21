@@ -3,43 +3,42 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import matplotlib as mpl
 import os
 
 class IRPlots:
-    def __init__(self,json_fn,colour_func,seq_inds,glob_mpl_func=None,lgnd_flag=True,save=None):
-        # read in json file containing info
+    def __init__(self,json_fn,colour_func,seq_inds,glob_mpl_func=None,lgnd=True,save=None):
+        # read in json file containing dataset info saved using IRDataset class
         with open(json_fn, "rb") as f:
             ppinfo = json.load(f)
         # load in labels, extract colours for samples, save sequence indices, load data matrix
         self.labels = pd.Series(ppinfo["labs"])
         self.colours = colour_func(self.labels)
         self.seq_inds = seq_inds
+        # data is a pandas dataframe
+        # depending on what operations were applied in IRDataset, index may consist of
+        # multiple columns, e.g. CDR3 sequence, and optionally V, D, and J segments
+        # some plots will not work without gene segment columns in the index
         self.data = pd.read_csv(ppinfo["prepro_path"], index_col=self.seq_inds)
-
-        # change plotting style with function
+        # change plotting style with function if one is specified
         if glob_mpl_func:
             glob_mpl_func()
-
-        # if we want to save figures in a folder set save as path to that folder
+        # if we want to save figures save should be path to folder
         if save:
             self.sv_flag = True
             self.sv_path = save
+        # if no path specified set save flag to false
         else:
             self.sv_flag=False
         # set legend flag
-        self.lgnd_flag = lgnd_flag
-        # set totc flag
-        self.totc_flag = False
-
+        self.lgnd_flag = lgnd
         # if we don't have proportions already, get proportions
         if (self.data.sum() == 1).all():
             self.props = self.data
         else:
             self.props = self.data/self.data.sum()
 
-    # Counts plot
     def plot_totc(self, title=None, fig_kwargs={}):
+        # plot bar chart of total counts or depth for all samples in dataset
         self.totc = self.data.sum()
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         ax.bar(self.totc.index, self.totc.values, color=self.colours.values)
@@ -59,9 +58,10 @@ class IRPlots:
             if title:
                 plt.title(title)
             plt.show()
+        plt.close()
 
-    # total counts histogram
     def totc_hist(self, bins, colour = 'k', by_class=None, title=None, fig_kwargs={}):
+        # plot histogram of total counts or depth, can be stratified by label
         self.totc = self.data.sum()
         if by_class is not None:
             selc = self.totc[self.labels == by_class]
@@ -84,10 +84,10 @@ class IRPlots:
             if title:
                 plt.title(title)
             plt.show()
+        plt.close()
 
-
-    # Abundance plot
     def plot_abund(self, top_n, title=None, fig_kwargs={}):
+        # plot lines showing top n clonal frequencies for all samples in dataset
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         for c in self.data.columns:
             ax.plot(np.arange(top_n)+1,sorted(self.data[c].values, reverse=True)[:top_n], color=self.colours[c], label=c)
@@ -108,10 +108,32 @@ class IRPlots:
             if title:
                 plt.title(title)
             plt.show()
+        plt.close()
 
-    # Diversity plot
+    @staticmethod
+    def richness(props):
+        # count species that exist in sample
+        return sum(props > 0)
+
+    @staticmethod
+    def shannon(props):
+        # first remove any sequences with zero share of repertoire
+        props = props[props > 0]
+        # calculate shannon diversity using formula
+        return -sum(props*np.log(props))
+
+    @staticmethod
+    def simpson(props):
+        # first remove any sequences with zero share of repertoire
+        props = props[props > 0]
+        # calculate Simpson diversity using formula
+        return sum(props**2)
+
     def plot_div(self, divfunc, title=None, fig_kwargs={}):
-        # calculate named diversity measures
+        # plot bar of diversity measures for all samples in dataset
+        # calculate diversity measure using static class method or an external function specified by user
+        # current class options are Richness, Shannon, Simpson
+        # proportions are used to calculate diversity
         div = self.props.apply(divfunc)
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         ax.bar(div.index, div.values, color=self.colours.values)
@@ -131,37 +153,29 @@ class IRPlots:
             if title:
                 plt.title(title)
             plt.show()
-
-    @staticmethod
-    def richness(counts):
-        return sum(counts > 0)
-
-    @staticmethod
-    def shannon(props):
-        props = props[props > 0]
-        return -sum(props*np.log(props))
-
-    @staticmethod
-    def simpson(props):
-        props = props[props > 0]
-        return sum(props**2)
+        plt.close()
 
     @staticmethod
     def Hill_div(props, q_vals):
+        # calculate Hill diversity profiles using list of q values
         # make sure q_vals is 1D array
         q_vals = np.array(q_vals).reshape(-1)
+        # initialise empty list
         div = []
-        # remove zeros
+        # remove sequences with zero share of repertoire
         props = props[props > 0]
         for q in q_vals:
             if q == 1:
+                # calculate perplexity separately due to log
                 ind = np.exp(-np.sum(props * np.log(props)))
             else:
+                # general formula works for remaining q values
                 ind = np.sum(props ** q) ** (1 / (1 - q))
             div = np.append(div, ind)
         return np.squeeze(div)
 
     def plot_dprofile(self, q_vals, title=None, fig_kwargs={}):
+        # plot lines showing diversity profile for all samples
         # calculate hill profile
         self.hill = self.props.apply(self.Hill_div, args=(q_vals,))
         fig, ax = plt.subplots(1,1,**fig_kwargs)
@@ -185,16 +199,19 @@ class IRPlots:
             if title:
                 plt.title(title)
             plt.show()
+        plt.close()
 
-
-    # VJ heatmap
     def seg_heatmap(self,col_name,title=None,fig_kwargs={}):
+        # for V, D, or J segments, calculate usage as proportion of repertoires and plot heatmap
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         seg_counts = self.props.groupby(by=col_name).sum().T
+        # white is zero share of repertoire, black is full share of repertoire
         ax = sns.heatmap(seg_counts, vmin=0, vmax=1, cmap='binary', linewidth=0.5, square=True, linecolor=(0,0,0),
                          cbar=False, xticklabels=True, yticklabels=True)
+        # colour the sample names on y axis
         for ytl, c in zip(ax.axes.get_yticklabels(), self.colours):
             ytl.set_color(c)
+        # ensure the heatmap outline shows
         for _, spine in ax.spines.items():
             spine.set_visible(True)
         ax.tick_params(left=False, bottom=False)
@@ -211,10 +228,11 @@ class IRPlots:
             if title:
                 plt.title(title)
             plt.show()
+        plt.close()
 
-    # VJ boxplots
     def seg_boxplots(self,class_names, colours, col_name, seg_name=None):
-        # colname must be passed, segname optional
+        # colname, either of the V D or J segments, must be passed
+        # segname optional, can plot single segment usage or all segment usage in V D or J
         seg_counts = self.props.groupby(by=col_name).sum()
         all_labs = np.unique(self.labels)
         if seg_name:
@@ -224,10 +242,13 @@ class IRPlots:
         for s in segs:
             fig, ax = plt.subplots(1,1)
             plt.title(s)
+            # set filers to black crosses
             fps = dict(marker='x', linestyle='none', markeredgecolor='k')
+            # make the median line black
             mps = dict(color='k')
-            bp = ax.boxplot([seg_counts.loc[s][self.labels == lab] for lab in all_labs],
-                        vert=True, patch_artist=True, labels=[class_names[l] for l in all_labs],flierprops=fps, medianprops=mps)
+            bp = ax.boxplot([seg_counts.loc[s][self.labels == lab] for lab in all_labs], vert=True, patch_artist=True,
+                            labels=[class_names[l] for l in all_labs],flierprops=fps, medianprops=mps)
+            # fill boxplots with colour specific to label
             for patch, color in zip(bp['boxes'], [colours[l] for l in all_labs]):
                 patch.set_facecolor(color)
             if self.sv_flag:
@@ -238,24 +259,28 @@ class IRPlots:
                 fig.savefig(os.path.join(self.sv_path, col_name+"_boxplots", fn))
             else:
                 plt.show()
+            plt.close()
 
-    # top seqs
     def plot_top(self, n_top, spec_lab=None, title=None, fig_kwargs={}):
-        # this works with proportions
+        # plot a stacked bar chart displaying the top n sequences within the entire dataset
+        # this uses proportions instead of raw counts
         if spec_lab is not None:
             tp_data = self.props[self.props.columns[self.labels == spec_lab]]
         else:
             tp_data = self.props
+        # use sum to sort sequences because we might have multiple index columns
         sum = tp_data.sum(axis=1)
         sum.index = range(len(tp_data))
         tp_sorted = tp_data.iloc[sum.sort_values(ascending=False).index].iloc[:n_top]
+        # initialise the bottom of the bars
         b = pd.Series(index=tp_sorted.index,data =np.zeros(len(tp_sorted)))
-        # need a more general version of this
+        # if we have multiple index columns, concatenate their strings to get sequence identifier labels
         seq_ids = ["-".join([i[j] for j in self.seq_inds]) for i in tp_sorted.index]
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         for i, c in enumerate(tp_sorted.columns):
             t = tp_sorted[c].values
             plt.bar(seq_ids, t, bottom=b, label=c, color=self.colours[c])
+            # update bottom of bars
             b = b + t
         plt.xticks(rotation=90)
         ax.set_xlabel("Top " + str(n_top) + " sequences")
@@ -276,3 +301,4 @@ class IRPlots:
             if title:
                 plt.title(title)
             plt.show()
+        plt.close()
