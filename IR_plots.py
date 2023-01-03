@@ -206,7 +206,7 @@ class IRPlots:
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         seg_counts = self.props.groupby(by=col_name).sum().T
         # white is zero share of repertoire, black is full share of repertoire
-        ax = sns.heatmap(seg_counts, vmin=0, vmax=1, cmap='binary', linewidth=0.5, square=True, linecolor=(0,0,0),
+        ax = sns.heatmap(seg_counts, vmin=0, vmax=1, cmap="plasma", linewidth=0.5, square=True, linecolor=(0,0,0),
                          cbar=False, xticklabels=True, yticklabels=True)
         # colour the sample names on y axis
         for ytl, c in zip(ax.axes.get_yticklabels(), self.colours):
