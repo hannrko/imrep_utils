@@ -36,6 +36,27 @@ class IRPlots:
             self.props = self.data
         else:
             self.props = self.data/self.data.sum()
+        # define variables we calculate later as None
+        self.totc = None
+        self.hill = None
+
+    def reord_sams(self,new_ord=None,ord_func=None):
+        # either new order for samples must be defined, or function applied to labels to get new order
+        if not new_ord and not ord_func:
+            print("either new_order or ord_func must be defined")
+        elif ord_func:
+            new_ord = ord_func(self.labels)
+        # if neither conditions above satisfied then new_ord is defined at input
+        # re-index everything defined in init
+        self.labels = self.labels.loc[new_ord]
+        self.colours = self.colours.loc[new_ord]
+        self.data = self.data[new_ord]
+        self.props = self.props[new_ord]
+        # check totc and hill
+        if self.totc:
+            self.totc = self.totc.loc[new_ord]
+        if self.hill:
+            self.hill = self.hill[new_ord]
 
     def plot_totc(self, title=None, fig_kwargs={}):
         # plot bar chart of total counts or depth for all samples in dataset
@@ -201,12 +222,12 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    def seg_heatmap(self,col_name,title=None,fig_kwargs={}):
+    def seg_heatmap(self,col_name,cmap="binary",vmax=1,title=None,fig_kwargs={}):
         # for V, D, or J segments, calculate usage as proportion of repertoires and plot heatmap
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         seg_counts = self.props.groupby(by=col_name).sum().T
         # white is zero share of repertoire, black is full share of repertoire
-        ax = sns.heatmap(seg_counts, vmin=0, vmax=1, cmap='binary', linewidth=0.5, square=True, linecolor=(0,0,0),
+        ax = sns.heatmap(seg_counts, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0,0,0),
                          cbar=False, xticklabels=True, yticklabels=True)
         # colour the sample names on y axis
         for ytl, c in zip(ax.axes.get_yticklabels(), self.colours):

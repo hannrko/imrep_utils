@@ -138,7 +138,7 @@ class IRDataset:
     # initialises immune repertoire dataset by getting paths to sample files and loading other necessary metadata
     # defines generator functions with series of steps to apply to repertoires
     # assembles dataset matrix by specifying generator function to execute in gen2matrix
-    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(None,), nargs=(None,), rs=None):
+    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(), nargs=(), rs=None):
         # ddir is the directory that stores repertoire files and nothing else
         # lfunc exracts labels from file names
         # dfunc extracts relevant information from repertoire files
