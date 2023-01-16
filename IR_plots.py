@@ -176,6 +176,30 @@ class IRPlots:
             plt.show()
         plt.close()
 
+    def div_boxplot(self, divfunc, class_names, colours, title, fig_kwargs={}):
+        div = self.props.apply(divfunc)
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        all_labs = np.unique(self.labels)
+        # set filers to black crosses
+        fps = dict(marker='x', linestyle='none', markeredgecolor='k')
+        # make the median line black
+        mps = dict(color='k')
+        bp = ax.boxplot([div[self.labels == lab] for lab in all_labs], vert=True, patch_artist=True,
+                        labels=[class_names[l] for l in all_labs], flierprops=fps, medianprops=mps)
+        # fill boxplots with colour specific to label
+        for patch, color in zip(bp['boxes'], [colours[l] for l in all_labs]):
+            patch.set_facecolor(color)
+        plt.title(title)
+        if self.sv_flag:
+            # convert title to filename
+            # segment names can have slashes, change to unicode
+            fn = "Boxplot_" + title.replace(" ", "_") + "_diversity.png"
+            # save figure in directory specified
+            fig.savefig(os.path.join(self.sv_path, fn))
+        else:
+            plt.show()
+        plt.close()
+
     @staticmethod
     def Hill_div(props, q_vals):
         # calculate Hill diversity profiles using list of q values
