@@ -176,7 +176,7 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    def div_boxplot(self, divfunc, class_names, colours, title, star=None, fig_kwargs={}):
+    def div_boxplot(self, divfunc, class_names, colours, title, star="", fig_kwargs={}):
         div = self.props.apply(divfunc)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
         all_labs = np.unique(self.labels)
@@ -194,12 +194,12 @@ class IRPlots:
             y = div.max() + 2*inc
             h = inc
             ax.plot([1,1,2,2],[y,y+h,y+h,y],lw=1.5,c='k')
-            ax.text(1.5,y+h,"*",ha='center',va='bottom',color='k')
+            ax.text(1.5,y+h,star,ha='center',va='bottom',color='k')
         plt.title(title)
         if self.sv_flag:
             # convert title to filename
             # segment names can have slashes, change to unicode
-            fn = "Boxplot_" + title.replace(" ", "_") + "_diversity.png"
+            fn = "Boxplot_" + title.replace(" ", "_") + ".png"
             # save figure in directory specified
             fig.savefig(os.path.join(self.sv_path, fn))
         else:
@@ -252,16 +252,16 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    def seg_heatmap(self,col_name,cmap="binary",vmax=1,stars=None,title=None,fig_kwargs={}):
+    def seg_heatmap(self,col_name,cmap="binary",vmax=1,disp_cbar=True,stars=None,title=None,fig_kwargs={}):
         # for V, D, or J segments, calculate usage as proportion of repertoires and plot heatmap
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         seg_counts = self.props.groupby(by=col_name).sum().T
         # add stars to indicate significant difference only if true passed for segment
         if stars is not None:
-            seg_counts.columns = [seg + ["","*"][int(s)] for s,seg in zip(stars,seg_counts.columns)]
+            seg_counts.columns = [seg + s for s,seg in zip(stars,seg_counts.columns)]
         # white is zero share of repertoire, black is full share of repertoire
         ax = sns.heatmap(seg_counts, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0,0,0),
-                         cbar=False, xticklabels=True, yticklabels=True)
+                         cbar=disp_cbar,cbar_kws={"shrink": 0.5}, xticklabels=True, yticklabels=True)
         # colour the sample names on y axis
         for ytl, c in zip(ax.axes.get_yticklabels(), self.colours):
             ytl.set_color(c)
