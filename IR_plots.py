@@ -179,11 +179,11 @@ class IRPlots:
             diversity = dict()
         else:
             # convert diversity class variable to dict
-            diversity = self.diversity.to_dict()
+            diversity = self.diversity.T.to_dict()
         for ind in indices:
             # proportions are used to calculate diversity
             diversity[ind] = self.props.apply(self.div_dict[ind])
-        self.diversity = pd.DataFrame(diversity)
+        self.diversity = pd.DataFrame(diversity).T
 
     def calc_hill(self,indices):
         self.hill = self.props.apply(self.Hill_div, args=(indices,))
@@ -191,10 +191,10 @@ class IRPlots:
     def plot_div(self, div_name, title=None, fig_kwargs={}):
         # plot bar of diversity measures for all samples in dataset
         # calculate diversity measure and store it for later if it's not already calculated
-        if div_name not in self.diversity.columns:
+        if div_name not in self.diversity.index:
             self.calc_div([div_name])
         fig, ax = plt.subplots(1,1,**fig_kwargs)
-        ax.bar(self.diversity[div_name].index, self.diversity[div_name].values, color=self.colours.values)
+        ax.bar(self.diversity.columns, self.diversity.loc[div_name].values, color=self.colours.values)
         ax.set_ylabel('Diversity')
         plt.xticks(rotation=90)
         plt.margins(x=0)
@@ -244,7 +244,7 @@ class IRPlots:
     def div_boxplot(self, div_name, class_names, colours, title, star="", fig_kwargs={}):
         self.calc_div([div_name])
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        ax = self._boxplot_by_class(self.diversity[div_name],class_names,colours,star,ax)
+        ax = self._boxplot_by_class(self.diversity.loc[div_name],class_names,colours,star,ax)
         plt.title(title)
         if self.sv_flag:
             # convert title to filename
