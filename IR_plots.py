@@ -176,25 +176,39 @@ class IRPlots:
             plt.show()
         plt.close()
 
+    def _boxplot_by_class(self,quantity,all_labs,class_names,colours,annot,ax):
+        # to plot boxplot separated by binary classes
+        # set fliers to black crosses
+        fps = dict(marker='x', linestyle='none', markeredgecolor='k')
+        # make median line black
+        mps = dict(color='k')
+        # split quantity by label, smallest first
+        quant_by_lab = [quantity[self.labels == lab] for lab in all_labs]
+        # get list of class names in same order
+        cn_ord = [class_names[l] for l in all_labs]
+        # plot boxpot that spans vertically and enable patch artist
+        bp = ax.boxplot(quant_by_lab, vert=True, patch_artist=True, labels=cn_ord, flierprops=fps, medianprops=mps)
+        # fill boxplots with label-specific colour
+        for patch, color in zip(bp['boxes'], [colours[l] for l in all_labs]):
+            patch.set_facecolor(color)
+        if annot:
+            # inc is the increment we use to set bracket spacing for annotation
+            inc = quantity.max()/100
+            # define height of bracket as above max value of data
+            y = quantity.max() + 2*inc
+            # set height of bracket as increment
+            h = inc
+            # set horizontal edges of bracket as x location of each class, and trace path in bracket shape using height h
+            ax.plot([1, 1, 2, 2], [y, y + h, y + h, y], lw=1.5, c='k')
+            # anotate in centre of bracket
+            ax.text(1.5, y + h, annot, ha='center', va='bottom', color='k')
+        return ax
+
     def div_boxplot(self, divfunc, class_names, colours, title, star="", fig_kwargs={}):
         div = self.props.apply(divfunc)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
         all_labs = np.unique(self.labels)
-        # set filers to black crosses
-        fps = dict(marker='x', linestyle='none', markeredgecolor='k')
-        # make the median line black
-        mps = dict(color='k')
-        bp = ax.boxplot([div[self.labels == lab] for lab in all_labs], vert=True, patch_artist=True,
-                        labels=[class_names[l] for l in all_labs], flierprops=fps, medianprops=mps)
-        # fill boxplots with colour specific to label
-        for patch, color in zip(bp['boxes'], [colours[l] for l in all_labs]):
-            patch.set_facecolor(color)
-        if star:
-            inc = div.max()/100
-            y = div.max() + 2*inc
-            h = inc
-            ax.plot([1,1,2,2],[y,y+h,y+h,y],lw=1.5,c='k')
-            ax.text(1.5,y+h,star,ha='center',va='bottom',color='k')
+        ax = self._boxplot_by_class(div,all_labs,class_names,colours,star,ax)
         plt.title(title)
         if self.sv_flag:
             # convert title to filename
@@ -284,7 +298,7 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    def seg_boxplots(self,class_names, colours, col_name, seg_name=None):
+    def seg_boxplots(self,class_names, colours, col_name, annots=None, seg_name=None):
         # colname, either of the V D or J segments, must be passed
         # segname optional, can plot single segment usage or all segment usage in V D or J
         seg_counts = self.props.groupby(by=col_name).sum()
@@ -296,15 +310,11 @@ class IRPlots:
         for s in segs:
             fig, ax = plt.subplots(1,1)
             plt.title(s)
-            # set filers to black crosses
-            fps = dict(marker='x', linestyle='none', markeredgecolor='k')
-            # make the median line black
-            mps = dict(color='k')
-            bp = ax.boxplot([seg_counts.loc[s][self.labels == lab] for lab in all_labs], vert=True, patch_artist=True,
-                            labels=[class_names[l] for l in all_labs],flierprops=fps, medianprops=mps)
-            # fill boxplots with colour specific to label
-            for patch, color in zip(bp['boxes'], [colours[l] for l in all_labs]):
-                patch.set_facecolor(color)
+            if annots is not None:
+                annot = annots[s]
+            else:
+                annot=""
+            ax = self._boxplot_by_class(seg_counts.loc[s], all_labs, class_names, colours, annot, ax)
             if self.sv_flag:
                 # convert title to filename
                 # segment names can have slashes, change to unicode
