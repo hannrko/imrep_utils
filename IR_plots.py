@@ -44,6 +44,7 @@ class IRPlots:
         self.totc = None
         self.hill = None
         self.diversity = None
+        self.seg_props = dict()
 
     def reord_sams(self,new_ord=None,ord_func=None):
         # either new order for samples must be defined, or function applied to labels to get new order
@@ -58,12 +59,15 @@ class IRPlots:
         self.data = self.data[new_ord]
         self.props = self.props[new_ord]
         # check totc, hill and diversity
-        if self.totc:
+        if self.totc is not None:
             self.totc = self.totc.loc[new_ord]
-        if self.hill:
+        if self.hill is not None:
             self.hill = self.hill[new_ord]
-        if self.diversity:
+        if self.diversity is not None:
             self.diversity = self.diversity[new_ord]
+        if len(self.seg_props.keys()) > 0:
+            # if we have saved usage
+            [self.seg_props.update({key: val[new_ord]}) for key, val in self.seg_props.items()]
 
     def plot_totc(self, title=None, fig_kwargs={}):
         # plot bar chart of total counts or depth for all samples in dataset
@@ -192,8 +196,11 @@ class IRPlots:
 
     def plot_div(self, div_name, title=None, fig_kwargs={}):
         # plot bar of diversity measures for all samples in dataset
-        # calculate diversity measure and store it for later if it's not already calculated
-        if div_name not in self.diversity.index:
+        if self.diversity is not None:
+            # calculate diversity measure and store it for later if it's not already calculated
+            if div_name not in self.diversity.index:
+                self.calc_div([div_name])
+        else:
             self.calc_div([div_name])
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         ax.bar(self.diversity.columns, self.diversity.loc[div_name].values, color=self.colours.values)
@@ -244,7 +251,12 @@ class IRPlots:
         return ax
 
     def div_boxplot(self, div_name, class_names, colours, title, star="", fig_kwargs={}):
-        self.calc_div([div_name])
+        if self.diversity is not None:
+            # calculate diversity measure and store it for later if it's not already calculated
+            if div_name not in self.diversity.index:
+                self.calc_div([div_name])
+        else:
+            self.calc_div([div_name])
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
         ax = self._boxplot_by_class(self.diversity.loc[div_name],class_names,colours,star,ax)
         plt.title(title)
@@ -291,10 +303,18 @@ class IRPlots:
             plt.show()
         plt.close()
 
+    def calc_segs(self,col_name):
+        seg_props = self.props.groupby(by=col_name).sum()
+        self.seg_props[col_name] = seg_props
+
     def seg_heatmap(self,col_name,cmap="binary",vmax=1,disp_cbar=True,stars=None,title=None,fig_kwargs={}):
         # for V, D, or J segments, calculate usage as proportion of repertoires and plot heatmap
         fig, ax = plt.subplots(1,1,**fig_kwargs)
-        seg_counts = self.props.groupby(by=col_name).sum().T
+        # check if we already calculated segment usage
+        if col_name not in self.seg_props.keys():
+            # calculate segment proportions
+            self.calc_segs(col_name)
+        seg_counts = self.seg_props[col_name].T
         # add stars to indicate significant difference only if true passed for segment
         if stars is not None:
             seg_counts.columns = [seg + s for s,seg in zip(stars,seg_counts.columns)]
@@ -326,7 +346,10 @@ class IRPlots:
     def seg_boxplots(self,class_names, colours, col_name, annots=None, seg_name=None):
         # colname, either of the V D or J segments, must be passed
         # segname optional, can plot single segment usage or all segment usage in V D or J
-        seg_counts = self.props.groupby(by=col_name).sum()
+        if col_name not in self.seg_props.keys():
+            # calculate segment proportions
+            self.calc_segs(col_name)
+        seg_counts = self.seg_props[col_name]
         if seg_name:
             segs = [seg_name]
         else:
