@@ -260,11 +260,16 @@ class IRPlots:
         # plot lines showing diversity profile for all samples
         # calculate hill profile
         #self.hill = self.props.apply(self.Hill_div, args=(q_vals,))
-        # don't reuse hill values
-        self.calc_hill(q_vals)
+        # if we've already calculated what we need, reuse hill values
+        if self.hill is not None:
+            reuse = all([q in self.hill.index for q in q_vals])
+            if not reuse:
+                self.calc_hill(q_vals)
+        else:
+            self.calc_hill(q_vals)
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         for c in self.hill.columns:
-            ax.plot(q_vals, self.hill[c], color=self.colours[c], label=c)
+            ax.plot(q_vals, self.hill[c].loc[q_vals], color=self.colours[c], label=c)
         ax.set_xticks(q_vals)
         plt.margins(x=0)
         ax.set_xlabel("q")
