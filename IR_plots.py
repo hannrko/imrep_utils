@@ -37,9 +37,13 @@ class IRPlots:
             self.props = self.data
         else:
             self.props = self.data/self.data.sum()
+        # make dict of diversity indices available to be calculated with names and functions
+        # current class options are Richness, Shannon, Simpson
+        self.div_dict = {'richness':self.richness,'Shannon':self.shannon,'Simpson':self.simpson}
         # define variables we calculate later as None
         self.totc = None
         self.hill = None
+        self.diversity = None
 
     def reord_sams(self,new_ord=None,ord_func=None):
         # either new order for samples must be defined, or function applied to labels to get new order
@@ -151,14 +155,46 @@ class IRPlots:
         # calculate Simpson diversity using formula
         return sum(props**2)
 
-    def plot_div(self, divfunc, title=None, fig_kwargs={}):
+    @staticmethod
+    def Hill_div(props, q_vals):
+        # calculate Hill diversity profiles using list of q values
+        # make sure q_vals is 1D array
+        q_vals = np.array(q_vals).reshape(-1)
+        # initialise empty list
+        div = []
+        # remove sequences with zero share of repertoire
+        props = props[props > 0]
+        for q in q_vals:
+            if q == 1:
+                # calculate perplexity separately due to log
+                ind = np.exp(-np.sum(props * np.log(props)))
+            else:
+                # general formula works for remaining q values
+                ind = np.sum(props ** q) ** (1 / (1 - q))
+            div = np.append(div, ind)
+        return np.squeeze(div)
+
+    def calc_div(self, indices):
+        if self.diversity is None:
+            diversity = dict()
+        else:
+            # convert diversity class variable to dict
+            diversity = self.diversity.to_dict()
+        for ind in indices:
+            # proportions are used to calculate diversity
+            diversity[ind] = self.props.apply(self.div_dict[ind])
+        self.diversity = pd.DataFrame(diversity)
+
+    def calc_hill(self,indices):
+        self.hill = self.props.apply(self.Hill_div, args=(indices,))
+
+    def plot_div(self, div_name, title=None, fig_kwargs={}):
         # plot bar of diversity measures for all samples in dataset
-        # calculate diversity measure using static class method or an external function specified by user
-        # current class options are Richness, Shannon, Simpson
-        # proportions are used to calculate diversity
-        div = self.props.apply(divfunc)
+        # calculate diversity measure and store it for later if it's not already calculated
+        if div_name not in self.diversity.columns:
+            self.calc_div([div_name])
         fig, ax = plt.subplots(1,1,**fig_kwargs)
-        ax.bar(div.index, div.values, color=self.colours.values)
+        ax.bar(self.diversity[div_name].index, self.diversity[div_name].values, color=self.colours.values)
         ax.set_ylabel('Diversity')
         plt.xticks(rotation=90)
         plt.margins(x=0)
@@ -205,10 +241,10 @@ class IRPlots:
             ax.text(1.5, y + h, annot, ha='center', va='bottom', color='k')
         return ax
 
-    def div_boxplot(self, divfunc, class_names, colours, title, star="", fig_kwargs={}):
-        div = self.props.apply(divfunc)
+    def div_boxplot(self, div_name, class_names, colours, title, star="", fig_kwargs={}):
+        self.calc_div([div_name])
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        ax = self._boxplot_by_class(div,class_names,colours,star,ax)
+        ax = self._boxplot_by_class(self.diversity[div_name],class_names,colours,star,ax)
         plt.title(title)
         if self.sv_flag:
             # convert title to filename
@@ -220,29 +256,12 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    @staticmethod
-    def Hill_div(props, q_vals):
-        # calculate Hill diversity profiles using list of q values
-        # make sure q_vals is 1D array
-        q_vals = np.array(q_vals).reshape(-1)
-        # initialise empty list
-        div = []
-        # remove sequences with zero share of repertoire
-        props = props[props > 0]
-        for q in q_vals:
-            if q == 1:
-                # calculate perplexity separately due to log
-                ind = np.exp(-np.sum(props * np.log(props)))
-            else:
-                # general formula works for remaining q values
-                ind = np.sum(props ** q) ** (1 / (1 - q))
-            div = np.append(div, ind)
-        return np.squeeze(div)
-
     def plot_dprofile(self, q_vals, title=None, fig_kwargs={}):
         # plot lines showing diversity profile for all samples
         # calculate hill profile
-        self.hill = self.props.apply(self.Hill_div, args=(q_vals,))
+        #self.hill = self.props.apply(self.Hill_div, args=(q_vals,))
+        # don't reuse hill values
+        self.calc_hill(q_vals)
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         for c in self.hill.columns:
             ax.plot(q_vals, self.hill[c], color=self.colours[c], label=c)
