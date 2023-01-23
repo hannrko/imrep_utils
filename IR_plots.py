@@ -57,11 +57,13 @@ class IRPlots:
         self.colours = self.colours.loc[new_ord]
         self.data = self.data[new_ord]
         self.props = self.props[new_ord]
-        # check totc and hill
+        # check totc, hill and diversity
         if self.totc:
             self.totc = self.totc.loc[new_ord]
         if self.hill:
             self.hill = self.hill[new_ord]
+        if self.diversity:
+            self.diversity = self.diversity[new_ord]
 
     def plot_totc(self, title=None, fig_kwargs={}):
         # plot bar chart of total counts or depth for all samples in dataset
@@ -259,7 +261,6 @@ class IRPlots:
     def plot_dprofile(self, q_vals, title=None, fig_kwargs={}):
         # plot lines showing diversity profile for all samples
         # calculate hill profile
-        #self.hill = self.props.apply(self.Hill_div, args=(q_vals,))
         # if we've already calculated what we need, reuse hill values
         if self.hill is not None:
             reuse = all([q in self.hill.index for q in q_vals])
