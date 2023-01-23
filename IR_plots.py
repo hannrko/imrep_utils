@@ -12,6 +12,7 @@ class IRPlots:
             ppinfo = json.load(f)
         # load in labels, extract colours for samples, save sequence indices, load data matrix
         self.labels = pd.Series(ppinfo["labs"])
+        self.all_labs = np.unique(self.labels)
         self.colours = colour_func(self.labels)
         self.seq_inds = seq_inds
         # data is a pandas dataframe
@@ -176,20 +177,20 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    def _boxplot_by_class(self,quantity,all_labs,class_names,colours,annot,ax):
+    def _boxplot_by_class(self,quantity,class_names,colours,annot,ax):
         # to plot boxplot separated by binary classes
         # set fliers to black crosses
         fps = dict(marker='x', linestyle='none', markeredgecolor='k')
         # make median line black
         mps = dict(color='k')
         # split quantity by label, smallest first
-        quant_by_lab = [quantity[self.labels == lab] for lab in all_labs]
+        quant_by_lab = [quantity[self.labels == lab] for lab in self.all_labs]
         # get list of class names in same order
-        cn_ord = [class_names[l] for l in all_labs]
+        cn_ord = [class_names[l] for l in self.all_labs]
         # plot boxpot that spans vertically and enable patch artist
         bp = ax.boxplot(quant_by_lab, vert=True, patch_artist=True, labels=cn_ord, flierprops=fps, medianprops=mps)
         # fill boxplots with label-specific colour
-        for patch, color in zip(bp['boxes'], [colours[l] for l in all_labs]):
+        for patch, color in zip(bp['boxes'], [colours[l] for l in self.all_labs]):
             patch.set_facecolor(color)
         if annot:
             # inc is the increment we use to set bracket spacing for annotation
@@ -207,8 +208,7 @@ class IRPlots:
     def div_boxplot(self, divfunc, class_names, colours, title, star="", fig_kwargs={}):
         div = self.props.apply(divfunc)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        all_labs = np.unique(self.labels)
-        ax = self._boxplot_by_class(div,all_labs,class_names,colours,star,ax)
+        ax = self._boxplot_by_class(div,class_names,colours,star,ax)
         plt.title(title)
         if self.sv_flag:
             # convert title to filename
@@ -302,7 +302,6 @@ class IRPlots:
         # colname, either of the V D or J segments, must be passed
         # segname optional, can plot single segment usage or all segment usage in V D or J
         seg_counts = self.props.groupby(by=col_name).sum()
-        all_labs = np.unique(self.labels)
         if seg_name:
             segs = [seg_name]
         else:
@@ -314,7 +313,7 @@ class IRPlots:
                 annot = annots[s]
             else:
                 annot=""
-            ax = self._boxplot_by_class(seg_counts.loc[s], all_labs, class_names, colours, annot, ax)
+            ax = self._boxplot_by_class(seg_counts.loc[s], class_names, colours, annot, ax)
             if self.sv_flag:
                 # convert title to filename
                 # segment names can have slashes, change to unicode
