@@ -40,11 +40,11 @@ class IRPlots:
         # make dict of diversity indices available to be calculated with names and functions
         # current class options are Richness, Shannon, Simpson
         self.div_dict = {'richness':self.richness,'Shannon':self.shannon,'Simpson':self.simpson}
-        # define variables we calculate later as None, or empty dict in the case of seg_props
+        # define variables we calculate later as None, or empty dict in the case of seg_usage
         self.totc = None
         self.hill = None
         self.diversity = None
-        self.seg_props = dict()
+        self.seg_usage = dict()
 
     def reord_sams(self,new_ord=None,ord_func=None):
         # either new order for samples must be defined, or function applied to labels to get new order
@@ -65,9 +65,9 @@ class IRPlots:
             self.hill = self.hill[new_ord]
         if self.diversity is not None:
             self.diversity = self.diversity[new_ord]
-        if len(self.seg_props.keys()) > 0:
+        if len(self.seg_usage.keys()) > 0:
             # if we have saved usage, go through dict and update dataframes with new column order
-            [self.seg_props.update({key: val[new_ord]}) for key, val in self.seg_props.items()]
+            [self.seg_usage.update({key: val[new_ord]}) for key, val in self.seg_usage.items()]
 
     def totc_bar(self, title=None, fig_kwargs={}):
         # plot bar chart of total counts or depth for all samples in dataset
@@ -304,17 +304,17 @@ class IRPlots:
         plt.close()
 
     def calc_segs(self,col_name):
-        seg_props = self.props.groupby(by=col_name).sum()
-        self.seg_props[col_name] = seg_props
+        seg_usage = self.props.groupby(by=col_name).sum()
+        self.seg_usage[col_name] = seg_usage
 
     def seg_heatmap(self,col_name,cmap="binary",vmax=1,disp_cbar=True,stars=None,title=None,fig_kwargs={}):
         # for V, D, or J segments, calculate usage as proportion of repertoires and plot heatmap
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         # check if we already calculated segment usage
-        if col_name not in self.seg_props.keys():
+        if col_name not in self.seg_usage.keys():
             # calculate segment proportions
             self.calc_segs(col_name)
-        seg_counts = self.seg_props[col_name].T
+        seg_counts = self.seg_usage[col_name].T
         # add stars to indicate significant difference only if true passed for segment
         if stars is not None:
             seg_counts.columns = [seg + s for s,seg in zip(stars,seg_counts.columns)]
@@ -346,10 +346,10 @@ class IRPlots:
     def seg_boxplots(self,class_names, colours, col_name, annots=None, seg_name=None):
         # colname, either of the V D or J segments, must be passed
         # segname optional, can plot single segment usage or all segment usage in V D or J
-        if col_name not in self.seg_props.keys():
+        if col_name not in self.seg_usage.keys():
             # calculate segment proportions
             self.calc_segs(col_name)
-        seg_counts = self.seg_props[col_name]
+        seg_counts = self.seg_usage[col_name]
         if seg_name:
             segs = [seg_name]
         else:
