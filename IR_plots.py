@@ -40,7 +40,7 @@ class IRPlots:
         # make dict of diversity indices available to be calculated with names and functions
         # current class options are Richness, Shannon, Simpson
         self.div_dict = {'richness':self.richness,'Shannon':self.shannon,'Simpson':self.simpson}
-        # define variables we calculate later as None
+        # define variables we calculate later as None, or empty dict in the case of seg_props
         self.totc = None
         self.hill = None
         self.diversity = None
@@ -66,10 +66,10 @@ class IRPlots:
         if self.diversity is not None:
             self.diversity = self.diversity[new_ord]
         if len(self.seg_props.keys()) > 0:
-            # if we have saved usage
+            # if we have saved usage, go through dict and update dataframes with new column order
             [self.seg_props.update({key: val[new_ord]}) for key, val in self.seg_props.items()]
 
-    def plot_totc(self, title=None, fig_kwargs={}):
+    def totc_bar(self, title=None, fig_kwargs={}):
         # plot bar chart of total counts or depth for all samples in dataset
         self.totc = self.data.sum()
         fig, ax = plt.subplots(1,1,**fig_kwargs)
@@ -118,7 +118,7 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    def plot_abund(self, top_n, title=None, fig_kwargs={}):
+    def abund_lines(self, top_n, title=None, fig_kwargs={}):
         # plot lines showing top n clonal frequencies for all samples in dataset
         fig, ax = plt.subplots(1,1,**fig_kwargs)
         for c in self.data.columns:
@@ -194,7 +194,7 @@ class IRPlots:
     def calc_hill(self,indices):
         self.hill = self.props.apply(self.Hill_div, args=(indices,))
 
-    def plot_div(self, div_name, title=None, fig_kwargs={}):
+    def div_bar(self, div_name, title=None, fig_kwargs={}):
         # plot bar of diversity measures for all samples in dataset
         if self.diversity is not None:
             # calculate diversity measure and store it for later if it's not already calculated
@@ -270,7 +270,7 @@ class IRPlots:
             plt.show()
         plt.close()
 
-    def plot_dprofile(self, q_vals, title=None, fig_kwargs={}):
+    def dprofile_lines(self, q_vals, title=None, fig_kwargs={}):
         # plot lines showing diversity profile for all samples
         # calculate hill profile
         # if we've already calculated what we need, reuse hill values
@@ -372,7 +372,7 @@ class IRPlots:
                 plt.show()
             plt.close()
 
-    def plot_top(self, n_top, spec_lab=None, title=None, fig_kwargs={}):
+    def top_seq_bar(self, n_top, spec_lab=None, title=None, fig_kwargs={}):
         # plot a stacked bar chart displaying the top n sequences within the entire dataset
         # this uses proportions instead of raw counts
         if spec_lab is not None:
