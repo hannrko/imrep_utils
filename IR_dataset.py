@@ -1,10 +1,8 @@
 import os
-import glob
 import re
 import json
 import pandas as pd
 import numpy as np
-import time
 import random
 
 
@@ -32,11 +30,11 @@ class ImmuneRepertoire:
         scodes = list(range(self.nseq))
         random.shuffle(scodes)
         sam_scodes = scodes[:thresh]
-        sbins = np.concatenate(([0],np.cumsum(self.seqtab.values)))
+        sbins = np.concatenate(([0], np.cumsum(self.seqtab.values)))
         # right false as default gives correct behaviour
-        sinds = np.digitize(sam_scodes,sbins)
-        sindsu, dcounts = np.unique(sinds,return_counts=True)
-        self.down = pd.Series(index = self.seqtab.index[sindsu], data = dcounts)
+        sinds = np.digitize(sam_scodes, sbins)
+        sindsu, dcounts = np.unique(sinds, return_counts=True)
+        self.down = pd.Series(index=self.seqtab.index[sindsu], data=dcounts)
         # optionally overwrite cdr3 matrix
         if overwrite:
             self.seqtab = self.down
@@ -72,24 +70,23 @@ class ImmuneRepertoire:
             self.positions = p
 
     @staticmethod
-    def get_AA_pos_fracs(l_seq,n_pos):
+    def get_aa_pos_fracs(l_seq, n_pos):
         # find position of a letter in a sequence
         # initialise aa_pos
-        aa_pos = np.zeros((0,l_seq))
+        aa_pos = np.zeros((0, l_seq))
         prev = np.zeros(l_seq)
-        fracs = np.linspace(0,1,l_seq+1)
+        fracs = np.linspace(0, 1, l_seq+1)
         for i in np.arange(n_pos)+1:
-            pointer = np.array([(fracs -i*1/n_pos).clip(min=0)[j:j+2] for j in range(l_seq)])
+            pointer = np.array([(fracs - i * 1/n_pos).clip(min=0)[j:j+2] for j in range(l_seq)])
             # indices that pointer has passed
             ind_sec = pointer == 0
             # if start or end fractions of each index are passed, add entry
-            res = np.where(np.logical_or(ind_sec[:,0],ind_sec[:,1]), 1 - pointer.sum(axis=1)*l_seq, 0) - prev
-            aa_pos = np.append(aa_pos,res.reshape(1,-1),axis=0)
+            res = np.where(np.logical_or(ind_sec[:, 0], ind_sec[:, 1]), 1 - pointer.sum(axis=1)*l_seq, 0) - prev
+            aa_pos = np.append(aa_pos, res.reshape(1, -1), axis=0)
             prev = prev + res
         return aa_pos
 
-    @staticmethod
-    def split_into_kmers(seq,counts,k,positional=None,position_cond_coeff = 0):
+    def split_into_kmers(self, seq, counts, k, positional=None, position_cond_coeff=0):
         # prepare empty dictionary which will hold kmers as keys, kmer counts as values
         kmer_dict = {}
         # if the sequences is shorter than or equal to desired kmer length, return None
@@ -101,7 +98,7 @@ class ImmuneRepertoire:
         kmers = [seq[i:i+k] for i in range(n_kmers)]
         # if no positional labels supplied, just return kmers
         if not positional:
-            kmer_dict.update(zip(kmers,np.tile(counts,n_kmers)))
+            kmer_dict.update(zip(kmers, np.tile(counts, n_kmers)))
             return kmer_dict
         # but if we do have positional labels
         else:
@@ -111,16 +108,16 @@ class ImmuneRepertoire:
             else:
                 n_sec = len(positional)
                 # calculate how far along CDR3 each AA is
-                aa_pos = IRDataset.get_AA_pos_fracs(len(seq), n_sec)
+                aa_pos = self.get_aa_pos_fracs(len(seq), n_sec)
                 # for each kmer, take positional fractions of each AA
-                kmer_pos_by_aa = np.array([aa_pos[:,i:i+k] for i in range(n_kmers)])
+                kmer_pos_by_aa = np.array([aa_pos[:, i:i+k] for i in range(n_kmers)])
                 # count up these fractions to determine fraction of kmer as whole
-                kmer_counts = np.outer(np.sum(kmer_pos_by_aa,axis=2)/k,counts)
+                kmer_counts = np.outer(np.sum(kmer_pos_by_aa, axis=2)/k, counts)
                 # round kmer counts so that all exact halves are preserved
                 rounded_kmer_counts = np.round(2*kmer_counts)/2
                 # for each kmer, position, and corresponding kmer counts
-                for kmer, p, c in zip(np.repeat(kmers,n_sec), np.tile(positional,n_kmers), rounded_kmer_counts):
-                    #if count isn't zero for this positional kmer
+                for kmer, p, c in zip(np.repeat(kmers, n_sec), np.tile(positional, n_kmers), rounded_kmer_counts):
+                    # if count isn't zero for this positional kmer
                     if c.any():
                         # make new kmer name
                         kmer_name = kmer + p
@@ -130,7 +127,7 @@ class ImmuneRepertoire:
                         if kmer_name in kmer_dict:
                             kmer_dict[kmer_name] += c
                         else:
-                            kmer_dict[kmer_name]= c
+                            kmer_dict[kmer_name] = c
             return kmer_dict
 
 
@@ -150,11 +147,11 @@ class IRDataset:
         # just use all files in ddir  and sort them in ascending numerical order
         # we expect filenames to start with an identifier which contains letter(s) and a number
         # this should be separated from the rest of the filename with - or _, or be the entire filename
-        files_in_ddir = [d for d in os.listdir(ddir) if os.path.isfile(os.path.join(ddir,d))]
+        files_in_ddir = [d for d in os.listdir(ddir) if os.path.isfile(os.path.join(ddir, d))]
         # sort by letter part of identifier and numerical part, letter part may refer to label or sample or otherwise
-        self.fnames = sorted(files_in_ddir,key=self.extr_sam_info)
+        self.fnames = sorted(files_in_ddir, key=self.extr_sam_info)
         # assemble sample paths from files
-        self.fpaths = [os.path.join(ddir,d) for d in self.fnames]
+        self.fpaths = [os.path.join(ddir, d) for d in self.fnames]
         self.nsam = len(self.fpaths)
         self.lfunc = lfunc
         self.dfunc = dfunc
@@ -184,21 +181,21 @@ class IRDataset:
     def extr_sam_info(fn):
         # fn is a filename
         # get sample identifier
-        snm = re.split('_|-|\\.',fn)[0]
+        snm = re.split('_|-|\\.', fn)[0]
         # extract numerical part
         num = int(re.findall(r'\d+', snm)[0])
         # extract letter part
-        mlab = re.findall(r'[A-Za-z]+',snm)[0]
+        mlab = re.findall(r'[A-Za-z]+', snm)[0]
         return mlab, num
 
     def get_counts(self):
         # dict from generator that executes get_count method for all repertoires
         self.counts = dict(((name, ImmuneRepertoire(fp, name, self.dfunc).get_count())
-                            for fp, name in zip(self.fpaths,self.snames)))
+                            for fp, name in zip(self.fpaths, self.snames)))
         self.count_flag = True
         return self.counts
 
-    def drop(self,sam_names):
+    def drop(self, sam_names):
         # remove samples in list sam_names from dataset
         # get indices of samples to drop
         idx_del = [np.argwhere(self.snames[0] == sn) for sn in sam_names]
@@ -219,12 +216,12 @@ class IRDataset:
             for sn in sam_names:
                 self.counts.pop(sn)
 
-    def prep_dwnsmpl(self,thresh = None):
+    def prep_dwnsmpl(self, thresh=None):
         # prepare downsampling
         # use threshold to determine which samples should be dropped due to insufficient counts
-        if self.count_flag == False:
+        if not self.count_flag:
             self.get_counts()
-        if thresh == None:
+        if thresh is None:
             # if no threshold defined, set it as the minimum counts
             self.d_thresh = np.amin(list(self.counts.values()))
         else:
@@ -236,7 +233,7 @@ class IRDataset:
         self.drop(ds_drp)
 
     # generator function
-    def ds_kmers(self, k, p = None, thresh = None, lab_spec = ""):
+    def ds_kmers(self, k, p=None, thresh=None, lab_spec=""):
         # downsample sequences, convert to kmers
         # first prep for downsampling
         # first do with just minimum value but need to add option
@@ -245,7 +242,7 @@ class IRDataset:
         self.prepro_name = f"{lab_spec}d{self.d_thresh}_rs{self.rs}_{'p' if p else ''}{k}mers"
         # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
         # requires generator function
-        for fp, name in zip(self.fpaths,self.snames):
+        for fp, name in zip(self.fpaths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
             ir.downsample(self.d_thresh)
             ir.kmerize(k, p)
@@ -261,17 +258,17 @@ class IRDataset:
             # needs to change to reflect sequences generally
             yield ir.seqtab
 
-    def gen2matrix(self,gf,kwargs):
+    def gen2matrix(self, gf, kwargs):
         # produce matrix containing resulting data
         gen = gf(**kwargs)
         # assemble the matrix
-        outmat = pd.concat(gen,axis=1)
+        outmat = pd.concat(gen, axis=1)
         outmat.columns = self.snames
         # save matrix to location, store location
-        self.prepro_dir = os.path.join(self.ddir,"preprocessed")
+        self.prepro_dir = os.path.join(self.ddir, "preprocessed")
         if not os.path.isdir(self.prepro_dir):
             os.makedirs(self.prepro_dir)
-        self.prepro_path = os.path.join(self.prepro_dir,self.prepro_name + '.csv')
+        self.prepro_path = os.path.join(self.prepro_dir, self.prepro_name + ".csv")
         prepro = outmat.fillna(0)
         prepro.to_csv(self.prepro_path)
         return prepro
@@ -289,4 +286,4 @@ class IRDataset:
 
     def load_prepro(self):
         # load in matrix instead of calling gen2matrix again
-        self.prepro = pd.read_csv(self.prepro_path, index_col = 0)
+        self.prepro = pd.read_csv(self.prepro_path, index_col=0)
