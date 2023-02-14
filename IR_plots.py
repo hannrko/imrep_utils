@@ -394,7 +394,11 @@ class IRPlots:
                 # segment names can have slashes, change to unicode
                 fn = s.replace("/", u'\u2215') + ".png"
                 # save figure in directory specified
-                fig.savefig(os.path.join(self.sv_path, col_name+"_boxplots", fn))
+                seg_path = os.path.join(self.sv_path, col_name+"_boxplots")
+                # check exists
+                if not os.path.isdir(seg_path):
+                    os.makedirs(seg_path)
+                fig.savefig(os.path.join(seg_path, fn))
             else:
                 plt.show()
             plt.close()
@@ -413,7 +417,10 @@ class IRPlots:
         # initialise the bottom of the bars
         b = pd.Series(index=tp_sorted.index, data=np.zeros(len(tp_sorted)))
         # if we have multiple index columns, concatenate their strings to get sequence identifier labels
-        seq_ids = ["-".join([i[j] for j in self.seq_inds]) for i in tp_sorted.index]
+        if isinstance(self.seq_inds,int):
+            seq_ids = tp_sorted.index
+        else:
+            seq_ids = ["-".join([i[j] for j in self.seq_inds]) for i in tp_sorted.index]
         if fig_kwargs is None:
             fig_kwargs = {}
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
