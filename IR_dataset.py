@@ -27,14 +27,23 @@ class ImmuneRepertoire:
 
     def downsample(self, thresh, overwrite=True):
         # sample sequences without replacement
-        scodes = list(range(self.nseq))
+        # indices of unique sequences
+        scodes = list(range(int(self.seqtab.sum())))
+        # randomise them
         random.shuffle(scodes)
+        # only take up to a threshold (is this correct?)
         sam_scodes = scodes[:thresh]
+        # get bin boundaries
         sbins = np.concatenate(([0], np.cumsum(self.seqtab.values)))
         # right false as default gives correct behaviour
+        # which bin do each of our samples fall into?
+        # bins labels start from 1 because we defined a lower bin limit that is 
+        # smaller or equal to all possible scodes
         sinds = np.digitize(sam_scodes, sbins)
+        # count up sampled bin categories
         sindsu, dcounts = np.unique(sinds, return_counts=True)
-        self.down = pd.Series(index=self.seqtab.index[sindsu], data=dcounts)
+        # make a new table of downsampled sequence by accessing the original sequences
+        self.down = pd.Series(index=self.seqtab.index[sindsu-1], data=dcounts)
         # optionally overwrite cdr3 matrix
         if overwrite:
             self.seqtab = self.down
@@ -232,7 +241,9 @@ class IRDataset:
         ds_drp = np.array(self.snames)[drp_ind]
         self.drop(ds_drp)
 
-    # generator function
+    # generator function to get downsampled kmers
+    # means that the sequence of functions to downsample and kmerise are applied
+    # to each repertoire individually
     def ds_kmers(self, k, p=None, thresh=None, lab_spec=""):
         # downsample sequences, convert to kmers
         # first prep for downsampling
@@ -247,7 +258,25 @@ class IRDataset:
             ir.downsample(self.d_thresh)
             ir.kmerize(k, p)
             yield ir.kmers
+    
+    # generator function to downsample each repertoire
+    # useful for compaing repertoires by their summaries
+    def ds_clones(self, thresh=None, lab_spec=""):
+        # downsample sequences, convert to kmers
+        # first prep for downsampling
+        # first do with just minimum value but need to add option
+        self.prep_dwnsmpl(thresh)
+        # name our preprocessing d(thresh) p/(not) kmers
+        self.prepro_name = f"{lab_spec}d{self.d_thresh}_rs{self.rs}_raw_clones"
+        # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
+        # requires generator function
+        for fp, name in zip(self.fpaths, self.snames):
+            ir = ImmuneRepertoire(fp, name, self.dfunc)
+            ir.downsample(self.d_thresh)
+            yield ir.down
 
+    # generator to extract raw clones as defined by extraction function
+    # useful to implement quality control after detailed analysis
     def raw_clones(self, lab_spec=""):
         # don't preprocess repertoires
         # this is helpful for plotting repertoire summaries
