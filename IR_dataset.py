@@ -121,7 +121,7 @@ class ImmuneRepertoire:
                 # for each kmer, take positional fractions of each AA
                 kmer_pos_by_aa = np.array([aa_pos[:, i:i+k] for i in range(n_kmers)])
                 # count up these fractions to determine fraction of kmer as whole
-                kmer_counts = np.outer(np.sum(kmer_pos_by_aa, axis=2)/k, counts)
+                kmer_counts = counts*(np.sum(kmer_pos_by_aa, axis=2)/k).flatten()
                 # round kmer counts so that all exact halves are preserved
                 rounded_kmer_counts = np.round(2*kmer_counts)/2
                 # for each kmer, position, and corresponding kmer counts
@@ -179,9 +179,9 @@ class IRDataset:
         self.labs = pd.Series(index=self.fnames, data=[self.lfunc(fn, *largs) for fn in self.fnames]).replace('nan', np.NaN)
         # if a name extractor is specified, get the names, otherwise remove file extensions
         if nfunc:
-            self.snames = [nfunc(fn, *nargs) for fn in self.fnames]
+            self.snames = np.array([nfunc(fn, *nargs) for fn in self.fnames])
         else:
-            self.snames = [fn.split(".")[0] for fn in self.fnames]
+            self.snames = np.array([fn.split(".")[0] for fn in self.fnames])
         self.labs.index = self.snames
         # drop samples with undefined labels
         self.drop(self.labs[self.labs.isna()].index)
@@ -207,7 +207,7 @@ class IRDataset:
     def drop(self, sam_names):
         # remove samples in list sam_names from dataset
         # get indices of samples to drop
-        idx_del = [np.argwhere(self.snames[0] == sn) for sn in sam_names]
+        idx_del = [np.argwhere(self.snames == sn)[0] for sn in sam_names]
         # add removed samples to dropped samples list
         self.dropped.extend(sam_names)
         # then overwrite sample names, file names and file paths lists
