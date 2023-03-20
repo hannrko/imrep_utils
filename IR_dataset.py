@@ -258,6 +258,17 @@ class IRDataset:
             ir.downsample(self.d_thresh)
             ir.kmerize(k, p)
             yield ir.kmers
+            
+    def raw_kmers(self, k, p=None, lab_spec=""):
+        # NOTE: dfunc must give a pandas series 
+        # name our preprocessing by kmers
+        self.prepro_name = f"{lab_spec}{'p' if p else ''}{k}mers"
+        # now get generator for ImmuneRepertoire objects with kmerisation applied
+        # requires generator function
+        for fp, name in zip(self.fpaths, self.snames):
+            ir = ImmuneRepertoire(fp, name, self.dfunc)
+            ir.kmerize(k, p)
+            yield ir.kmers
     
     # generator function to downsample each repertoire
     # useful for compaing repertoires by their summaries
