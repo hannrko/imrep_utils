@@ -57,7 +57,8 @@ class ImmuneRepertoire:
         # only appropriate where we specify extract_func that gives a single amino acid or nucleotide sequence index
         all_kmers = {}
         short_kmers = []
-        for s, c in self.seqtab.items():
+        for s in self.seqtab.index:
+            c = self.seqtab.loc[s]
             # kmerise each sequence
             kmers = self.split_into_kmers(s, c, k, p)
             if kmers is None:
@@ -77,6 +78,7 @@ class ImmuneRepertoire:
         self.kmer_k = k
         if p is not None:
             self.positions = p
+
 
     @staticmethod
     def get_aa_pos_fracs(l_seq, n_pos):
