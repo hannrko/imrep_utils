@@ -6,9 +6,11 @@ Created on Thu Mar  2 14:37:07 2023
 """
 
 import os
+cwd = os.getcwd()
 import sys
-irc_path = "C:/users/hannrk/imrep_utils"
-sys.path.append(irc_path)
+parent_dir = os.path.abspath(os.path.join(cwd, os.pardir))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
 from IR_dataset import ImmuneRepertoire
 import pandas as pd
 import numpy as np
