@@ -5,9 +5,13 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 
-
+def hide_dupe_name(names):
+    dup_mask = names.duplicated()
+    names[dup_mask] = "_" + names
+    return names
+    
 class IRPlots:
-    def __init__(self, json_fn, colour_func, seq_inds, glob_mpl_func=None, lgnd=True, save=None):
+    def __init__(self, json_fn, colour_func, name_func, seq_inds, glob_mpl_func=None, lgnd=True, save=None):
         # read in json file containing dataset info saved using IRDataset class
         with open(json_fn, "rb") as f:
             ppinfo = json.load(f)
@@ -15,6 +19,11 @@ class IRPlots:
         self.labels = pd.Series(ppinfo["labs"])
         self.all_labs = np.unique(self.labels)
         self.colours = colour_func(self.labels)
+        rep_sams = list((self.colours[~self.colours.duplicated()]).index)
+        self.all_colours = self.colours.loc[rep_sams]
+        self.names = name_func(self.labels)
+        self.all_names = self.names.loc[rep_sams]        
+        #self.neat_names = hide_dupe_name(self.names)
         self.seq_inds = seq_inds
         # data is a pandas dataframe
         # depending on what operations were applied in IRDataset, index may consist of
@@ -33,6 +42,7 @@ class IRPlots:
             self.sv_flag = False
         # set legend flag
         self.lgnd_flag = lgnd
+        self.plt_resln = 1200
         # if we don't have proportions already, get proportions
         if (self.data.sum() == 1).all():
             self.props = self.data
@@ -81,6 +91,11 @@ class IRPlots:
         plt.xticks(rotation=90)
         plt.margins(x=0)
         plt.tight_layout()
+        if self.lgnd_flag:
+            f = lambda m,c: plt.plot([],[],marker=m, color=c, ls="none")[0]
+            handles = [f("s", self.all_colours[i]) for i in range(len(self.all_colours))]
+            plt.legend(handles, self.all_names, bbox_to_anchor=(1.02, 1), borderaxespad=0, loc=1, framealpha=1, frameon=False)
+            #plt.legend(list(self.neat_names.values))
         if self.sv_flag:
             # convert title to filename
             if title:
@@ -88,7 +103,7 @@ class IRPlots:
             else:
                 fn = "totc_prod_bar.png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), dpi=self.plt_resln)
         else:
             if title:
                 plt.title(title)
@@ -116,7 +131,7 @@ class IRPlots:
             else:
                 fn = "totc_prod_hist.png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), dpi=self.plt_resln)
         else:
             if title:
                 plt.title(title)
@@ -143,7 +158,7 @@ class IRPlots:
             else:
                 fn = "top_clone_abund.png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), dpi=self.plt_resln)
         else:
             if title:
                 plt.title(title)
@@ -226,7 +241,7 @@ class IRPlots:
             else:
                 fn = "div_bar.png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), dpi=self.plt_resln)
         else:
             if title:
                 plt.title(title)
@@ -279,7 +294,7 @@ class IRPlots:
             # segment names can have slashes, change to unicode
             fn = "Boxplot_" + title.replace(" ", "_") + ".png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), dpi=self.plt_resln)
         else:
             plt.show()
         plt.close()
@@ -313,7 +328,7 @@ class IRPlots:
             else:
                 fn = "div_profile.png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), dpi=self.plt_resln)
         else:
             if title:
                 plt.title(title)
@@ -361,7 +376,7 @@ class IRPlots:
             else:
                 fn = col_name + "_heatmap.png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), bbox_inches='tight', dpi=self.plt_resln)
         else:
             if title:
                 plt.title(title)
@@ -398,7 +413,7 @@ class IRPlots:
                 # check exists
                 if not os.path.isdir(seg_path):
                     os.makedirs(seg_path)
-                fig.savefig(os.path.join(seg_path, fn))
+                fig.savefig(os.path.join(seg_path, fn), dpi=self.plt_resln)
             else:
                 plt.show()
             plt.close()
@@ -443,7 +458,7 @@ class IRPlots:
             else:
                 fn = "top_seqs.png"
             # save figure in directory specified
-            fig.savefig(os.path.join(self.sv_path, fn))
+            fig.savefig(os.path.join(self.sv_path, fn), dpi=self.plt_resln)
         else:
             if title:
                 plt.title(title)
