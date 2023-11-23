@@ -42,5 +42,5 @@ print(test.kmers)
 
 # now what happens when we use IRDataset?
 dummyird = IRDataset("multiple_dummy_reads", dummy_lab_extr, test_extr, rs=1)
-dummy_3mers = dummyird.gen2matrix(dummyird.ds_kmers, dict(k=3, thresh=10))
+dummy_3mers = dummyird.gen2matrix(dummyird.ds_kmers, dict(k=3, thresh=10), export=True, json_path=None)
 #dummy_3mers.to_csv("dskmers_rs1.csv")

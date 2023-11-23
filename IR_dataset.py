@@ -300,25 +300,31 @@ class IRDataset:
             # needs to change to reflect sequences generally
             yield ir.seqtab
 
-    def gen2matrix(self, gf, kwargs):
+    def gen2matrix(self, gf, kwargs, export=True, json_path=None):
         # produce matrix containing resulting data
         gen = gf(**kwargs)
         # assemble the matrix
         outmat = pd.concat(gen, axis=1)
         outmat.columns = self.snames
-        # save matrix to location, store location
-        self.prepro_dir = os.path.join(self.ddir, "preprocessed")
-        if not os.path.isdir(self.prepro_dir):
-            os.makedirs(self.prepro_dir)
-        self.prepro_path = os.path.join(self.prepro_dir, self.prepro_name + ".csv")
         prepro = outmat.fillna(0)
-        prepro.to_csv(self.prepro_path)
+        if export:
+            # save matrix to location, store location
+            prepro_dir = os.path.join(self.ddir, "preprocessed")
+            if not os.path.isdir(prepro_dir):
+                os.makedirs(prepro_dir)
+            prepro_fname = self.prepro_name + ".csv"
+            prepro_path = os.path.join(prepro_dir, prepro_fname)
+            prepro.to_csv(prepro_path)
+            if json_path is None:
+                json_path = f"{self.prepro_name}.json"
+            self.json_export(json_path, prepro_path, prepro_fname)
         return prepro
 
-    def json_export(self, svpath):
+    def json_export(self, svpath, prepro_path, prepro_fname):
         # store all information we need about the preprocessing as a json file
         # make everything python-built-in types
-        sv_dict = dict(labs=self.labs.to_dict(), prepro_path=self.prepro_path, prepro_name=self.prepro_name,
+        sv_dict = dict(labs=self.labs.to_dict(), prepro_path=prepro_path,
+                       prepro_name=self.prepro_name, prepro_fname = prepro_fname,
                        dropped=self.dropped, dropped_labs=self.drpd_labs)
         if self.count_flag:
             sv_dict["raw_counts"] = self.counts
@@ -326,6 +332,3 @@ class IRDataset:
         with open(svpath, 'w', encoding='utf-8') as f:
             json.dump(sv_dict, f, ensure_ascii=False, indent=4)
 
-    def load_prepro(self):
-        # load in matrix instead of calling gen2matrix again
-        self.prepro = pd.read_csv(self.prepro_path, index_col=0)
