@@ -25,14 +25,14 @@ class ImmuneRepertoire:
         self.props = self.seqtab/self.count
         return self.props
 
-    def downsample(self, thresh, overwrite=True):
+    def downsample(self, d, overwrite=True):
         # sample sequences without replacement
         # indices of unique sequences
         scodes = list(range(int(self.seqtab.sum())))
         # randomise them
         random.shuffle(scodes)
         # only take up to a threshold (is this correct?)
-        sam_scodes = scodes[:thresh]
+        sam_scodes = scodes[:d]
         # get bin boundaries
         sbins = np.concatenate(([0], np.cumsum(self.seqtab.values)))
         # right false as default gives correct behaviour
@@ -168,8 +168,6 @@ class IRDataset:
         self.dfunc = dfunc
         # we haven't calculated counts yet
         self.count_flag = False
-        # initialise preprocessing dict
-        self.prepro = {}
         # set random seed if specified
         self.rs = rs
         if self.rs:
@@ -187,6 +185,10 @@ class IRDataset:
         self.labs.index = self.snames
         # drop samples with undefined labels
         self.drop(self.labs[self.labs.isna()].index)
+        self.prepro_func_dict = {"ds_kmers": self.ds_kmers, "raw_kmers": self.raw_kmers,
+                                 "ds_clones": self.ds_clones, "raw_clones": self.raw_clones}
+        self.pos = {0: None, 1: ["start", "middle", "end"]}
+
 
     @staticmethod
     def extr_sam_info(fn):
@@ -227,104 +229,113 @@ class IRDataset:
             for sn in sam_names:
                 self.counts.pop(sn)
 
-    def prep_dwnsmpl(self, thresh=None):
+    def prep_dwnsmpl(self, d=None):
         # prepare downsampling
         # use threshold to determine which samples should be dropped due to insufficient counts
         if not self.count_flag:
             self.get_counts()
-        if thresh is None:
+        if d is None:
             # if no threshold defined, set it as the minimum counts
-            self.d_thresh = np.amin(list(self.counts.values()))
-        else:
-            # otherwise set the threshold using the defined parameter
-            self.d_thresh = thresh
+            d = np.amin(list(self.counts.values()))
         # samples less deep than threshold are dropped
-        drp_ind = np.array(list(self.counts.values())) < self.d_thresh
+        drp_ind = np.array(list(self.counts.values())) < d
         ds_drp = np.array(self.snames)[drp_ind]
         self.drop(ds_drp)
+        return d
 
     # generator function to get downsampled kmers
     # means that the sequence of functions to downsample and kmerise are applied
     # to each repertoire individually
-    def ds_kmers(self, k, p=None, thresh=None, lab_spec=""):
+    def ds_kmers(self, k, p=0, d=None):
         # downsample sequences, convert to kmers
         # first prep for downsampling
         # first do with just minimum value but need to add option
-        self.prep_dwnsmpl(thresh)
-        # name our preprocessing d(thresh) p/(not) kmers
-        self.prepro_name = f"{lab_spec}d{self.d_thresh}_rs{self.rs}_{'p' if p else ''}{k}mers"
+        d = self.prep_dwnsmpl(d)
         # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
         # requires generator function
         for fp, name in zip(self.fpaths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
-            ir.downsample(self.d_thresh)
-            ir.kmerize(k, p)
+            ir.downsample(d)
+            # use the positionality dict defined in class
+            ir.kmerize(k, self.pos[p])
             yield ir.kmers
             
-    def raw_kmers(self, k, p=None, lab_spec=""):
-        # NOTE: dfunc must give a pandas series 
-        # name our preprocessing by kmers
-        self.prepro_name = f"{lab_spec}{'p' if p else ''}{k}mers"
+    def raw_kmers(self, k, p=0):
+        # NOTE: dfunc must give a pandas series
         # now get generator for ImmuneRepertoire objects with kmerisation applied
         # requires generator function
         for fp, name in zip(self.fpaths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
-            ir.kmerize(k, p)
+            ir.kmerize(k, self.pos[p])
             yield ir.kmers
     
     # generator function to downsample each repertoire
     # useful for compaing repertoires by their summaries
-    def ds_clones(self, thresh=None, lab_spec=""):
+    def ds_clones(self, d=None):
         # downsample sequences, convert to kmers
         # first prep for downsampling
         # first do with just minimum value but need to add option
-        self.prep_dwnsmpl(thresh)
-        # name our preprocessing d(thresh) p/(not) kmers
-        self.prepro_name = f"{lab_spec}d{self.d_thresh}_rs{self.rs}_raw_clones"
+        d = self.prep_dwnsmpl(d)
         # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
         # requires generator function
         for fp, name in zip(self.fpaths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
-            ir.downsample(self.d_thresh)
+            ir.downsample(d)
             yield ir.down
 
     # generator to extract raw clones as defined by extraction function
     # useful to implement quality control after detailed analysis
-    def raw_clones(self, lab_spec=""):
+    def raw_clones(self):
         # don't preprocess repertoires
-        # this is helpful for plotting repertoire summaries
-        self.prepro_name = f"{lab_spec}raw_clones"
+        # this is helpful for exploratory repertoire plotting (small datasets only)
         # get repertoires, extracting relevant information with dfunc
         for fp, name in zip(self.fpaths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
             # needs to change to reflect sequences generally
             yield ir.seqtab
 
-    def gen2matrix(self, gf, kwargs, export=True, json_path=None):
+    def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, lab_spec=None):
+        gen_func = self.prepro_func_dict[prepro_func_key]
+        prepro = self.gen2matrix(gen_func, kwargs)
+        if export:
+            if lab_spec is None:
+                lab_spec = ""
+            else:
+                lab_spec = lab_spec + "_"
+            # do we also need naming funcs?
+            kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
+            if self.rs is not None:
+                kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
+            prepro_name = f"{lab_spec}{prepro_func_key}_{kwargs_name}"
+            # save matrix to location, store location
+            prepro_dir = os.path.join(self.ddir, "preprocessed")
+            if not os.path.isdir(prepro_dir):
+                os.makedirs(prepro_dir)
+            prepro_fname = prepro_name + ".csv"
+            prepro_path = os.path.join(prepro_dir, prepro_fname)
+            prepro.to_csv(prepro_path)
+            json_fname = f"{prepro_name}.json"
+            if json_dir is None:
+                json_dir = ""
+            json_path = os.path.join(json_dir, json_fname)
+            self.json_export(json_path, prepro_path, prepro_fname, prepro_name)
+        return prepro
+
+    def gen2matrix(self, gf, kwargs):
         # produce matrix containing resulting data
         gen = gf(**kwargs)
         # assemble the matrix
         outmat = pd.concat(gen, axis=1)
         outmat.columns = self.snames
         prepro = outmat.fillna(0)
-        if export:
-            # save matrix to location, store location
-            prepro_dir = os.path.join(self.ddir, "preprocessed")
-            if not os.path.isdir(prepro_dir):
-                os.makedirs(prepro_dir)
-            prepro_fname = self.prepro_name + ".csv"
-            prepro_path = os.path.join(prepro_dir, prepro_fname)
-            prepro.to_csv(prepro_path)
-            if json_path is None:
-                json_path = f"{self.prepro_name}.json"
-            self.json_export(json_path, prepro_path, prepro_fname)
         return prepro
 
-    def json_export(self, svpath, prepro_path, prepro_fname):
+
+    def json_export(self, svpath, prepro_path, prepro_fname, prepro_name):
         # store all information we need about the preprocessing as a json file
         # make everything python-built-in types
         sv_dict = dict(labs=self.labs.to_dict(), prepro_path=prepro_path,
-                       prepro_name=self.prepro_name, prepro_fname = prepro_fname,
+                       prepro_name=prepro_name, prepro_fname = prepro_fname,
                        dropped=self.dropped, dropped_labs=self.drpd_labs)
         if self.count_flag:
             sv_dict["raw_counts"] = self.counts
