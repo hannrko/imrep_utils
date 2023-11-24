@@ -141,6 +141,8 @@ class ImmuneRepertoire:
                             kmer_dict[kmer_name] = c
             return kmer_dict
 
+def get_files(dir):
+    return [os.path.join(dir, d) for d in os.listdir(dir) if os.path.isfile(os.path.join(dir, d))]
 
 class IRDataset:
     # initialises immune repertoire dataset by getting paths to sample files and loading other necessary metadata
@@ -153,17 +155,23 @@ class IRDataset:
         # nfunc is optional and replaces filenames with sample names
         # largs and nargs can supply additional variables to lfunc and nfunc respectively
         # rs sets random seed which can be used in downsampling
-        self.ddir = ddir
+        if isinstance(ddir, list):
+            self.ds_paths = np.concatenate(list(map(get_files, ddir)))
+            self.ddir = ddir[0]
+        else:
+            self.ds_paths = get_files(ddir)
+            self.ddir = ddir
         # get list of files to read
         # just use all files in ddir  and sort them in ascending numerical order
         # we expect filenames to start with an identifier which contains letter(s) and a number
         # this should be separated from the rest of the filename with - or _, or be the entire filename
-        files_in_ddir = [d for d in os.listdir(ddir) if os.path.isfile(os.path.join(ddir, d))]
         # sort by letter part of identifier and numerical part, letter part may refer to label or sample or otherwise
-        self.fnames = sorted(files_in_ddir, key=self.extr_sam_info)
+        #unsrt_fnames = [os.path.split(dsp)[1] for dsp in self.ds_paths]
+        self.ds_paths = sorted(self.ds_paths, key=self.extr_sam_info)
         # assemble sample paths from files
-        self.fpaths = [os.path.join(ddir, d) for d in self.fnames]
-        self.nsam = len(self.fpaths)
+        #self.fpaths = [os.path.join(ddir, d) for d in self.fnames]
+        self.fnames = [os.path.split(dsp)[1] for dsp in self.ds_paths]
+        self.nsam = len(self.ds_paths)
         self.lfunc = lfunc
         self.dfunc = dfunc
         # we haven't calculated counts yet
@@ -191,8 +199,9 @@ class IRDataset:
 
 
     @staticmethod
-    def extr_sam_info(fn):
-        # fn is a filename
+    def extr_sam_info(fp):
+        # fp is a filepath
+        fn = os.path.split(fp)[1]
         # get sample identifier
         snm = re.split('_|-|\\.', fn)[0]
         # extract numerical part
@@ -204,7 +213,7 @@ class IRDataset:
     def get_counts(self):
         # dict from generator that executes get_count method for all repertoires
         self.counts = dict(((name, ImmuneRepertoire(fp, name, self.dfunc).get_count())
-                            for fp, name in zip(self.fpaths, self.snames)))
+                            for fp, name in zip(self.ds_paths, self.snames)))
         self.count_flag = True
         return self.counts
 
@@ -216,7 +225,7 @@ class IRDataset:
         self.dropped.extend(sam_names)
         # then overwrite sample names, file names and file paths lists
         self.fnames = np.delete(self.fnames, idx_del)
-        self.fpaths = np.delete(self.fpaths, idx_del)
+        self.ds_paths = np.delete(self.ds_paths, idx_del)
         self.snames = np.delete(self.snames, idx_del)
         # save labels of dropped samples
         self.drpd_labs.update(self.labs[sam_names].to_dict())
@@ -253,20 +262,22 @@ class IRDataset:
         d = self.prep_dwnsmpl(d)
         # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
         # requires generator function
-        for fp, name in zip(self.fpaths, self.snames):
+        for fp, name in zip(self.ds_paths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
             ir.downsample(d)
             # use the positionality dict defined in class
-            ir.kmerize(k, self.pos[p])
+
+            ir.kmerize(k, p=self.pos[p])
             yield ir.kmers
             
     def raw_kmers(self, k, p=0):
         # NOTE: dfunc must give a pandas series
         # now get generator for ImmuneRepertoire objects with kmerisation applied
         # requires generator function
-        for fp, name in zip(self.fpaths, self.snames):
+        for fp, name in zip(self.ds_paths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
-            ir.kmerize(k, self.pos[p])
+            ir.kmerize(k, p=self.pos[p])
+
             yield ir.kmers
     
     # generator function to downsample each repertoire
@@ -278,7 +289,7 @@ class IRDataset:
         d = self.prep_dwnsmpl(d)
         # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
         # requires generator function
-        for fp, name in zip(self.fpaths, self.snames):
+        for fp, name in zip(self.ds_paths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
             ir.downsample(d)
             yield ir.down
@@ -289,7 +300,7 @@ class IRDataset:
         # don't preprocess repertoires
         # this is helpful for exploratory repertoire plotting (small datasets only)
         # get repertoires, extracting relevant information with dfunc
-        for fp, name in zip(self.fpaths, self.snames):
+        for fp, name in zip(self.ds_paths, self.snames):
             ir = ImmuneRepertoire(fp, name, self.dfunc)
             # needs to change to reflect sequences generally
             yield ir.seqtab
