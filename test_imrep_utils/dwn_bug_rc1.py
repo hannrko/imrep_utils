@@ -19,13 +19,14 @@ from IR_dataset import IRDataset
 
 
 def test_extr_unique(dpath):
-    raw = pd.read_table(dpath,index_col=0)
+    raw = pd.read_table(dpath,index_col=0, header=0)
+    print(raw)
     useqs = np.unique(raw.index)
     return pd.DataFrame(index=useqs,data=np.ones((len(useqs),1)),columns=["counts"])
 
 def test_extr(dpath):
-    raw = pd.read_table(dpath,index_col=0)
-    return raw
+    raw = pd.read_table(dpath)
+    return pd.Series(index=raw["CDR3"].values, data=raw["count"].values)
 
 def dummy_lab_extr(labinput):
     return 0
@@ -33,14 +34,14 @@ def dummy_lab_extr(labinput):
 # Very basic test
 dpath = "dummy_reads.txt"
 #random.seed(1)
-test = ImmuneRepertoire(dpath,"test",test_extr)
-test.downsample(24)
-print(test.seqtab)
-test.kmerize(3,["a","b","c"])
-print(test.kmers)
+#test = ImmuneRepertoire(dpath,"test",test_extr)
+#test.downsample(24)
+#print(test.seqtab)
+#test.kmerize(3,["a","b","c"])
+#print(test.kmers)
 # we get the same result over and over when random seed is 1.
 
 # now what happens when we use IRDataset?
-dummyird = IRDataset("multiple_dummy_reads", dummy_lab_extr, test_extr, rs=1)
-dummy_3mers = dummyird.gen2matrix(dummyird.ds_kmers, dict(k=3, thresh=10), export=True, json_path=None)
+dummyird = IRDataset(["multiple_dummy_reads", "other_dummy_reads"], dummy_lab_extr, test_extr, rs=1)
+dummy_3mers = dummyird.prepro("raw_kmers", dict( k=5, p=1), export=True, json_dir=None)
 #dummy_3mers.to_csv("dskmers_rs1.csv")
