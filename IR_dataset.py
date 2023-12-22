@@ -305,7 +305,7 @@ class IRDataset:
             # needs to change to reflect sequences generally
             yield ir.seqtab
 
-    def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, lab_spec=None):
+    def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, ds_name=None, lab_spec=None):
         gen_func = self.prepro_func_dict[prepro_func_key]
         prepro = self.gen2matrix(gen_func, kwargs)
         if export:
@@ -317,9 +317,13 @@ class IRDataset:
             kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
             if self.rs is not None:
                 kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
-            prepro_name = f"{lab_spec}{prepro_func_key}_{kwargs_name}"
+            if ds_name is None:
+                ds_name = os.path.split(self.ddir)[1]
+            prepro_name = f"{ds_name}_{lab_spec}{prepro_func_key}_{kwargs_name}"
             # save matrix to location, store location
-            prepro_dir = os.path.join(self.ddir, "preprocessed")
+            #prepro_dir = os.path.join(self.ddir, "preprocessed")
+            ddir_path, ddir_name = os.path.split(self.ddir)
+            prepro_dir = os.path.join(ddir_path, "preprocessed_" + ddir_name)
             if not os.path.isdir(prepro_dir):
                 os.makedirs(prepro_dir)
             prepro_fname = prepro_name + ".csv"
@@ -330,7 +334,7 @@ class IRDataset:
                 json_dir = ""
             json_path = os.path.join(json_dir, json_fname)
             self.json_export(json_path, prepro_path, prepro_fname, prepro_name)
-        return prepro
+        return json_fname
 
     def gen2matrix(self, gf, kwargs):
         # produce matrix containing resulting data
