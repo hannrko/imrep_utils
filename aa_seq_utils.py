@@ -50,22 +50,19 @@ class AAImSeq:
         return pos, kmer_pos
 
     # merge these two functions
-    def foersetal_kmer_position(self, kmers, k, p=None):
-        # returns numpy array, which stores positional kmers and counts
-        pos, kmer_pos = self.get_kmer_pos_alloc(kmers, k, p)
-        # round kmer counts so that all exact halves are preserved (reproducing original code)
-        kmer_count_grid = np.round(2*self.count*kmer_pos)/2
-        obs_pkmer_counts = np.argwhere(kmer_count_grid > 0)
-        # use indices to form kmers and assign counts
-        p_kmers = [kmers[i] + pos[j] for i, j in obs_pkmer_counts]
-        p_kmer_counts = kmer_count_grid[*obs_pkmer_counts.T]
-        return p_kmers, p_kmer_counts
+    def foersetal_kmer_position_rounding(self, x):
+        # halves are preserved
+        return np.round(2*x)/2
 
-    def count_informed_kmer_position(self, kmers, k, p):
+    def count_informed_kmer_position(self, kmers, k, p, round_func=None):
+        # ROUNDING
+        if round_func is None:
+            # if we don't want to round, use function that just passes value
+            round_func = lambda x: x
         # determine counts of kmers in each position, round to integer
         # returns kmers and counts
         pos, kmer_pos = self.get_kmer_pos_alloc(kmers, k, p)
-        kmer_count_grid = self.count*kmer_pos
+        kmer_count_grid = round_func(self.count*kmer_pos)
         obs_pkmer_counts = np.argwhere(kmer_count_grid > 0)
         # use indices to form kmers and assign counts
         # coming back with string counts...
@@ -81,14 +78,14 @@ class AAImSeq:
         p_kmers = [kmer + pos[kmer_pos_ind[i]] for i, kmer in enumerate(kmers)]
         return p_kmers
 
-    def to_kmers(self, k, p=None, p_use_counts=False, ignore_dup_kmers=False):
+    def to_kmers(self, k, p=None, p_use_counts=False, p_counts_round_func=None, ignore_dup_kmers=False):
         # kmerise
         kmers = self.kmerize(k)
         counts_flag = False
         # if positional, use positional method
         if p is not None:
             if p_use_counts:
-                kmers, kmer_counts = self.count_informed_kmer_position(kmers, k, p)
+                kmers, kmer_counts = self.count_informed_kmer_position(kmers, k, p, round_func=p_counts_round_func)
                 counts_flag = True
             else:
                 kmers = self.simple_kmer_position(kmers, k, p)
@@ -99,6 +96,7 @@ class AAImSeq:
             kmer_counts = np.repeat(self.count, len(kmers))
         # then use dict addition
         kmer_dict = {}
+        # dict addition should be imported from somewhere else
         for i in range(len(kmers)):
             km = kmers[i]
             c = kmer_counts[i]
