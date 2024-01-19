@@ -1,4 +1,5 @@
 import numpy as np
+import utils
 
 class ImSeq:
     def __init__(self, seq, count=1):
@@ -95,13 +96,5 @@ class ImSeq:
             # if we haven't already calculated counts, do it now
             kmer_counts = np.repeat(self.count, len(kmers))
         # then use dict addition
-        kmer_dict = {}
-        # dict addition should be imported from somewhere else
-        for i in range(len(kmers)):
-            km = kmers[i]
-            c = kmer_counts[i]
-            if km in kmer_dict.keys():
-                kmer_dict[km] = kmer_dict[km] + c
-            else:
-                kmer_dict[km] = c
+        kmer_dict = utils.lists_to_dict(kmers, kmer_counts)
         return kmer_dict

@@ -1,5 +1,6 @@
 import numpy as np
 import aa_seq_utils as aasu
+import utils
 
 class KmerRepertoire:
     def __init__(self, k, seqs, counts=None, trim=None, kmer_kwargs=None):
@@ -27,12 +28,8 @@ class KmerRepertoire:
         kmer_rep = {}
         # leave option open to get multiple kmer lengths?
         k = self.k
-        # how to add these dicts together?
-        for seq in self.seq_rep:
-            kd = seq.to_kmers(k, **kmer_kwargs)
-            for key, val in kd.items():
-                if key in kmer_rep.keys():
-                    kmer_rep[key] = kmer_rep[key] + val
-                else:
-                    kmer_rep[key] = val
+        # generator to avoid two for loops
+        kd_gen = (seq.to_kmers(k, **kmer_kwargs) for seq in self.seq_rep)
+        #kd_gen = [seq.to_kmers(k, **kmer_kwargs) for seq in self.seq_rep]
+        kmer_rep = utils.dicts_to_dict(kd_gen)
         return kmer_rep
