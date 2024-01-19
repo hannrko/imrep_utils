@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import random
+import diversity
 
 class ImmuneRepertoire:
     # defines a single immune repertoire sample and any preprocessing operations that can be applied as class functions
@@ -14,6 +15,7 @@ class ImmuneRepertoire:
     def count_seqs(self):
         self.n_seq = len(self.seq_info)
         self.count = int(sum(self.seq_counts))
+        self.props = self.seq_counts/self.count
 
     def downsample(self, d, overwrite=True):
         # sample sequences without replacement
@@ -32,7 +34,7 @@ class ImmuneRepertoire:
         sinds = np.digitize(sam_scodes, sbins)
         # count up sampled bin categories
         sindsu, down_seq_counts = np.unique(sinds, return_counts=True)
-        down_seq_inds = sindsu-1
+        down_seq_inds = sindsu - 1
         # make a new table of downsampled sequence by accessing the original sequences
         # update all class variables
         down_seq_info = self.seq_info[down_seq_inds]
@@ -43,3 +45,26 @@ class ImmuneRepertoire:
             self.seq_counts = down_seq_counts
             self.count_seqs()
         return down_seq_info, down_seq_counts
+
+    def calc_div(self, div_names, q_vals=None):
+        if isinstance(div_names, str):
+            div_names = [div_names]
+        div = {}
+        for dvn in div_names:
+            if dvn.lower() == "hill":
+                div.update(self._calc_hill_div(dvn, q_vals))
+            else:
+                div.update(self._calc_single_div(dvn))
+        return div
+
+    def _calc_div(self, div_name, div_func_args=None):
+        return diversity.diversity(div_name, self.props, args=div_func_args)
+
+    def _calc_single_div(self, div_name):
+        div = self._calc_div(div_name)
+        return dict([(div_name, div)])
+
+    def _calc_hill_div(self, div_name, q_vals):
+        div = self._calc_div(div_name, (q_vals,))
+        long_div_names = [div_name + str(q) for q in q_vals]
+        return dict(zip(long_div_names, div))
