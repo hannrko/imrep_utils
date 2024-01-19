@@ -1,6 +1,6 @@
 import numpy as np
 
-class AAImSeq:
+class ImSeq:
     def __init__(self, seq, count=1):
         self.aa_seq = seq
         self.count = count
