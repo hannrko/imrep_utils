@@ -45,7 +45,6 @@ class IRDataset:
         # sort by letter part of identifier and numerical part, letter part may refer to label or sample or otherwise
         self.ds_paths = sorted(self.ds_paths, key=extr_sam_info)
         # assemble sample paths from files
-        #self.fpaths = [os.path.join(ddir, d) for d in self.fnames]
         self.fnames = [os.path.split(dsp)[1] for dsp in self.ds_paths]
         self.nsam = len(self.ds_paths)
         self.lfunc = lfunc
@@ -71,7 +70,8 @@ class IRDataset:
         # drop samples with undefined labels
         self.drop(self.labs[self.labs.isna()].index)
         self.prepro_func_dict = {"ds_kmers": self.ds_kmers, "raw_kmers": self.raw_kmers,
-                                 "ds_clones": self.ds_clones, "raw_clones": self.raw_clones}
+                                 "ds_clones": self.ds_clones, "raw_clones": self.raw_clones,
+                                 "ds_diversity": self.ds_diversity, "ds_vdj": self.ds_vdj}
         self.pos = {0: None, 1: ["start", "middle", "end"]}
 
     def get_counts(self):
