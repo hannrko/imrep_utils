@@ -30,6 +30,9 @@ class KmerRepertoire:
         k = self.k
         # generator to avoid two for loops
         kd_gen = (seq.to_kmers(k, **kmer_kwargs) for seq in self.seq_rep)
-        #kd_gen = [seq.to_kmers(k, **kmer_kwargs) for seq in self.seq_rep]
         kmer_rep = utils.dicts_to_dict(kd_gen)
         return kmer_rep
+
+    def get_as_pandas(self):
+        import pandas as pd
+        return pd.Series(self.kmers)

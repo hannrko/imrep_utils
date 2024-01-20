@@ -5,9 +5,21 @@ import pandas as pd
 import numpy as np
 import random
 import immune_repertoire as imrep
+import kmer_repertoire as krep
 
 def get_files(dir):
     return [os.path.join(dir, d) for d in os.listdir(dir) if os.path.isfile(os.path.join(dir, d))]
+
+def extr_sam_info(fp):
+    # fp is a filepath
+    fn = os.path.split(fp)[1]
+    # get sample identifier
+    snm = re.split('_|-|\\.', fn)[0]
+    # extract numerical part
+    num = int(re.findall(r'\d+', snm)[0])
+    # extract letter part
+    mlab = re.findall(r'[A-Za-z]+', snm)[0]
+    return mlab, num
 
 class IRDataset:
     # initialises immune repertoire dataset by getting paths to sample files and loading other necessary metadata
@@ -31,8 +43,7 @@ class IRDataset:
         # we expect filenames to start with an identifier which contains letter(s) and a number
         # this should be separated from the rest of the filename with - or _, or be the entire filename
         # sort by letter part of identifier and numerical part, letter part may refer to label or sample or otherwise
-        #unsrt_fnames = [os.path.split(dsp)[1] for dsp in self.ds_paths]
-        self.ds_paths = sorted(self.ds_paths, key=self.extr_sam_info)
+        self.ds_paths = sorted(self.ds_paths, key=extr_sam_info)
         # assemble sample paths from files
         #self.fpaths = [os.path.join(ddir, d) for d in self.fnames]
         self.fnames = [os.path.split(dsp)[1] for dsp in self.ds_paths]
@@ -40,6 +51,7 @@ class IRDataset:
         self.lfunc = lfunc
         self.dfunc = dfunc
         # we haven't calculated counts yet
+        self.counts = None
         self.count_flag = False
         # set random seed if specified
         self.rs = rs
@@ -62,22 +74,9 @@ class IRDataset:
                                  "ds_clones": self.ds_clones, "raw_clones": self.raw_clones}
         self.pos = {0: None, 1: ["start", "middle", "end"]}
 
-
-    @staticmethod
-    def extr_sam_info(fp):
-        # fp is a filepath
-        fn = os.path.split(fp)[1]
-        # get sample identifier
-        snm = re.split('_|-|\\.', fn)[0]
-        # extract numerical part
-        num = int(re.findall(r'\d+', snm)[0])
-        # extract letter part
-        mlab = re.findall(r'[A-Za-z]+', snm)[0]
-        return mlab, num
-
     def get_counts(self):
         # dict from generator that executes get_count method for all repertoires
-        self.counts = dict(((name, imrep.ImmuneRepertoire(fp, name, self.dfunc).get_count())
+        self.counts = dict(((name, imrep.ImmuneRepertoire(fp, name, self.dfunc).count)
                             for fp, name in zip(self.ds_paths, self.snames)))
         self.count_flag = True
         return self.counts
@@ -96,9 +95,9 @@ class IRDataset:
         self.drpd_labs.update(self.labs[sam_names].to_dict())
         # overwrite labels
         self.labs = self.labs[self.snames]
-        # if we've calculated counts maybe we should delete relevant entries?
+        # if we've calculated counts we should delete relevant entries
         if self.count_flag:
-            # but we should have a dropped counts attribute to make sure we understand why they were dropped
+            # we should also have a dropped counts attribute to make sure we understand why they were dropped
             self.drpd_counts.update(dict((sn, self.counts[sn]) for sn in sam_names))
             for sn in sam_names:
                 self.counts.pop(sn)
@@ -131,9 +130,11 @@ class IRDataset:
             ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
             ir.downsample(d)
             # use the positionality dict defined in class
-
-            ir.kmerize(k, p=self.pos[p])
-            yield ir.kmers
+            # need to select cdr3
+            kmer_kwargs = {"p": self.pos[p]}
+            kr = krep.KmerRepertoire(k, ir.seq_info, kmer_kwargs=kmer_kwargs)
+            kmers = kr.get_as_pandas()
+            yield kmers
             
     def raw_kmers(self, k, p=0):
         # NOTE: dfunc must give a pandas series
@@ -141,9 +142,10 @@ class IRDataset:
         # requires generator function
         for fp, name in zip(self.ds_paths, self.snames):
             ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
-            ir.kmerize(k, p=self.pos[p])
-
-            yield ir.kmers
+            kmer_kwargs = {"p": self.pos[p]}
+            kr = krep.KmerRepertoire(k, ir.seq_info, kmer_kwargs=kmer_kwargs)
+            kmers = kr.get_as_pandas()
+            yield kmers
     
     # generator function to downsample each repertoire
     # useful for compaing repertoires by their summaries
@@ -157,7 +159,8 @@ class IRDataset:
         for fp, name in zip(self.ds_paths, self.snames):
             ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
             ir.downsample(d)
-            yield ir.down
+            clones = ir.get_as_pandas()
+            yield clones
 
     # generator to extract raw clones as defined by extraction function
     # useful to implement quality control after detailed analysis
@@ -167,8 +170,9 @@ class IRDataset:
         # get repertoires, extracting relevant information with dfunc
         for fp, name in zip(self.ds_paths, self.snames):
             ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
+            clones = ir.get_as_pandas()
             # needs to change to reflect sequences generally
-            yield ir.seqtab
+            yield clones
 
     def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, ds_name=None, lab_spec=None):
         gen_func = self.prepro_func_dict[prepro_func_key]
@@ -209,7 +213,6 @@ class IRDataset:
         outmat.columns = self.snames
         prepro = outmat.fillna(0)
         return prepro
-
 
     def json_export(self, svpath, prepro_path, prepro_fname, prepro_name):
         # store all information we need about the preprocessing as a json file

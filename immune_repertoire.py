@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 import random
 import diversity
 
@@ -68,3 +67,12 @@ class ImmuneRepertoire:
         div = self._calc_div(div_name, (q_vals,))
         long_div_names = [div_name + str(q) for q in q_vals]
         return dict(zip(long_div_names, div))
+
+    def get_as_pandas(self):
+        import pandas as pd
+        seq_ser = pd.Series(index=self.seq_info, data=self.seq_counts)
+        seq_ser.index.names = self.seq_info_names
+        return
+
+    # want to also get vdj usage
+
