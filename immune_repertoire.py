@@ -37,7 +37,6 @@ class ImmuneRepertoire:
         # make a new table of downsampled sequence by accessing the original sequences
         # update all class variables
         down_seq_info = self.seq_info[down_seq_inds]
-        #self.down = pd.Series(index=self.seqtab.index[sindsu-1], data=dcounts)
         # optionally overwrite cdr3 matrix
         if overwrite:
             self.seq_info = down_seq_info
@@ -70,9 +69,14 @@ class ImmuneRepertoire:
 
     def get_as_pandas(self):
         import pandas as pd
-        seq_ser = pd.Series(index=self.seq_info, data=self.seq_counts)
+        # must turn back into list for automatic multiindex
+        seq_info_t = list(np.array(self.seq_info).T)
+        seq_ser = pd.Series(index=seq_info_t, data=self.seq_counts)
         seq_ser.index.names = self.seq_info_names
-        return
+        return seq_ser
 
     # want to also get vdj usage
-
+    def calc_vdj_usage(self, vdj_names):
+        seq_tab = self.get_as_pandas()
+        # then calculate clones with unique combination of segments
+        return seq_tab.groupby(by=vdj_names).sum()

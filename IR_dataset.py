@@ -174,6 +174,34 @@ class IRDataset:
             # needs to change to reflect sequences generally
             yield clones
 
+    def ds_diversity(self, d=None):
+        # downsample sequences, convert to kmers
+        # first prep for downsampling
+        # first do with just minimum value but need to add option
+        d = self.prep_dwnsmpl(d)
+        # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
+        # requires generator function
+        for fp, name in zip(self.ds_paths, self.snames):
+            ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
+            ir.downsample(d)
+            div = ir.calc_div(["richness", "shannon", "simpson"])
+            yield pd.Series(div)
+
+    def ds_vdj(self, seg_names, d=None):
+        # downsample sequences, convert to kmers
+        # first prep for downsampling
+        # first do with just minimum value but need to add option
+        d = self.prep_dwnsmpl(d)
+        # now get generator for ImmuneRepertoire objects with downsampling and kmerisation applied
+        # requires generator function
+        for fp, name in zip(self.ds_paths, self.snames):
+            ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
+            ir.downsample(d)
+            # if multiple gene segment types
+            # then calculate clones with unique combination
+            vdj = ir.calc_vdj_usage(seg_names)
+            yield vdj
+
     def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, ds_name=None, lab_spec=None):
         gen_func = self.prepro_func_dict[prepro_func_key]
         prepro = self.gen2matrix(gen_func, kwargs)
