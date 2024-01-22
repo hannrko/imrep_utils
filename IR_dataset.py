@@ -72,7 +72,7 @@ class IRDataset:
         self.prepro_func_dict = {"ds_kmers": self.ds_kmers, "raw_kmers": self.raw_kmers,
                                  "ds_clones": self.ds_clones, "raw_clones": self.raw_clones,
                                  "ds_diversity": self.ds_diversity, "ds_vdj": self.ds_vdj}
-        self.pos = {0: None, 1: ["start", "middle", "end"]}
+        #self.pos = {0: None, 1: ["start", "middle", "end"]}
 
     def get_counts(self):
         # dict from generator that executes get_count method for all repertoires
@@ -119,8 +119,10 @@ class IRDataset:
     # generator function to get downsampled kmers
     # means that the sequence of functions to downsample and kmerise are applied
     # to each repertoire individually
-    def ds_kmers(self, k, p=0, d=None):
+    def ds_kmers(self, k, d=None, trim=None, p=None, p_use_counts=False, p_counts_round_func=None,
+                 ignore_dup_kmers=False):
         # downsample sequences, convert to kmers
+        # set up kmer_kwargs
         # first prep for downsampling
         # first do with just minimum value but need to add option
         d = self.prep_dwnsmpl(d)
@@ -131,19 +133,21 @@ class IRDataset:
             ir.downsample(d)
             # use the positionality dict defined in class
             # need to select cdr3
-            kmer_kwargs = {"p": self.pos[p]}
-            kr = krep.KmerRepertoire(k, ir.seq_info, kmer_kwargs=kmer_kwargs)
+            kr = krep.KmerRepertoire(k, seqs=ir.seq_info, counts=ir.seq_counts, trim=trim, p=p, p_use_counts=p_use_counts,
+                                     p_counts_round_func=p_counts_round_func, ignore_dup_kmers=ignore_dup_kmers)
             kmers = kr.get_as_pandas()
             yield kmers
             
-    def raw_kmers(self, k, p=0):
+    def raw_kmers(self, k, trim=None, p=None, p_use_counts=False, p_counts_round_func=None,
+                 ignore_dup_kmers=False):
         # NOTE: dfunc must give a pandas series
         # now get generator for ImmuneRepertoire objects with kmerisation applied
         # requires generator function
         for fp, name in zip(self.ds_paths, self.snames):
             ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
-            kmer_kwargs = {"p": self.pos[p]}
-            kr = krep.KmerRepertoire(k, ir.seq_info, kmer_kwargs=kmer_kwargs)
+            #kmer_kwargs = {"p": self.pos[p]}
+            kr = krep.KmerRepertoire(k, seqs=ir.seq_info, counts=ir.seq_counts, trim=trim, p=p, p_use_counts=p_use_counts,
+                                     p_counts_round_func=p_counts_round_func, ignore_dup_kmers=ignore_dup_kmers)
             kmers = kr.get_as_pandas()
             yield kmers
     
@@ -212,6 +216,7 @@ class IRDataset:
                 lab_spec = lab_spec + "_"
             # do we also need naming funcs?
             kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
+            print(kwargs_name)
             if self.rs is not None:
                 kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
             if ds_name is None:
@@ -220,7 +225,7 @@ class IRDataset:
             # save matrix to location, store location
             #prepro_dir = os.path.join(self.ddir, "preprocessed")
             ddir_path, ddir_name = os.path.split(self.ddir)
-            prepro_dir = os.path.join(ddir_path, "preprocessed_" + ddir_name)
+            prepro_dir = os.path.join(ddir_path, ddir_name + "_preprocessed")
             if not os.path.isdir(prepro_dir):
                 os.makedirs(prepro_dir)
             prepro_fname = prepro_name + ".csv"

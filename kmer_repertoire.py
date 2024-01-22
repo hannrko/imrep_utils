@@ -3,7 +3,8 @@ import aa_seq_utils as aasu
 import utils
 
 class KmerRepertoire:
-    def __init__(self, k, seqs, counts=None, trim=None, kmer_kwargs=None):
+    def __init__(self, k, seqs, counts=None, trim=None, p=None, p_use_counts=False, p_counts_round_func=None,
+                 ignore_dup_kmers=False):
         # no need to count duplicates
         # k should be an integer
         # counts assumed 1 if not specified
@@ -16,20 +17,21 @@ class KmerRepertoire:
         self.seq_rep = [aasu.ImSeq(s, c) for s, c in zip(seqs, counts)]
         if trim is not None:
             self.seq_rep = self.trim(trim)
-        self.kmers = self.get_kmers(kmer_kwargs)
+        self.kmers = self.get_kmers(p=p, p_use_counts=p_use_counts, p_counts_round_func=p_counts_round_func,
+                                    ignore_dup_kmers=ignore_dup_kmers)
 
     def trim(self, nr):
         # trim nr (number of residues) from each end of sequence
         return [seq.trim(nr) for seq in self.seq_rep]
 
-    def get_kmers(self, kmer_kwargs=None):
-        if kmer_kwargs is None:
-            kmer_kwargs = {}
+    def get_kmers(self, p=None, p_use_counts=False, p_counts_round_func=None, ignore_dup_kmers=False):
         kmer_rep = {}
         # leave option open to get multiple kmer lengths?
         k = self.k
-        # generator to avoid two for loops
-        kd_gen = (seq.to_kmers(k, **kmer_kwargs) for seq in self.seq_rep)
+        # generator to avoid two for loops (?)
+        kd_gen = (seq.to_kmers(k, p=p, p_use_counts=p_use_counts,
+                               p_counts_round_func=p_counts_round_func,
+                               ignore_dup_kmers=ignore_dup_kmers) for seq in self.seq_rep)
         kmer_rep = utils.dicts_to_dict(kd_gen)
         return kmer_rep
 
