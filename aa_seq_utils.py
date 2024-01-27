@@ -68,7 +68,7 @@ class ImSeq:
         # use indices to form kmers and assign counts
         # coming back with string counts...
         p_kmers = [kmers[i] + pos[j] for i, j in obs_pkmer_counts]
-        p_kmer_counts = kmer_count_grid[*obs_pkmer_counts.T]
+        p_kmer_counts = [kmer_count_grid[opk[0], opk[1]] for opk in obs_pkmer_counts]
         return p_kmers, p_kmer_counts
 
     def simple_kmer_position(self, kmers, k, p):
