@@ -103,3 +103,43 @@ class DatasetDiversityPlotter(DatasetPlotter):
         if legend_flag:
             ax.legend()
         self._handle_output(fig, df_title, title)
+
+class VDJDatasetPlotter(DatasetPlotter):
+    def heatmap(self, colour_name, cmap="binary", norm=True, vmax=1, disp_cbar=True, title=None, fig_kwargs=None):
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
+        if norm:
+            # normalise- should be downsampled!
+            denom = int(np.unique([self.data.sum(axis=1).values]))
+            vdj = self.data/denom
+        else:
+            vdj = self.data
+            # overwrite default if not normalising
+            if vmax == 1:
+                vmax = self.data.max()
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        ax = sns.heatmap(vdj, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
+                         cbar=disp_cbar, cbar_kws={"shrink": 0.5}, xticklabels=True, yticklabels=True)
+        for ytl, c in zip(ax.axes.get_yticklabels(), self.sam_colour[colour_name]):
+            ytl.set_color(c)
+        for _, spine in ax.spines.items():
+            spine.set_visible(True)
+        ax.tick_params(left=False, bottom=False)
+        ax.set(xlabel=None)
+        df_title = "vdj heatmap"
+        self._handle_output(fig, df_title, title)
+
+    def box(self, colour_name, norm=True, title=None, fig_kwargs=None):
+        vdj = self.data.melt(ignore_index=False, var_name="seg", value_name="count")
+        if norm:
+            vdj["count"] = vdj["count"]/np.unique(self.data.sum(axis=1).values)
+        vdj = vdj.reset_index(names="sample")
+        ri_sam_info = self.sam_info.reset_index(names="sample")
+        info_data = vdj.merge(ri_sam_info, left_on="sample", right_on="sample")
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        ax = sns.boxplot(data=info_data, x="seg", y="count", hue=colour_name,
+                         palette=self.sam_colour_dicts[colour_name], ax=ax)
+        ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=90)
+        fig.set_tight_layout(True)
+        df_title = "vdj box"
+        self._handle_output(fig, df_title, title)
