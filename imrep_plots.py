@@ -3,6 +3,7 @@ import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib as mpl
 
 class DatasetPlotter:
     def __init__(self, data, sam_info, resolution=1200, plt_format="png", save=None, glob_mpl_func=None):
@@ -63,7 +64,14 @@ class DatasetPlotter:
         colours = [colour_dict[si_i] for si_i in si]
         self.sam_colour[sam_info_col] = colours
 
-    # reorder samples
+    def reorder_samples(self, new_ord=None, ord_func=None):
+        if new_ord is None and ord_func is None:
+            print("either new_order or ord_func must be defined")
+        elif ord_func:
+            new_ord = ord_func(self.sam_info)
+        self.sam_info = self.sam_info.loc[new_ord]
+        self.data = self.data.loc[new_ord]
+        self.sam_colour = self.sam_colour.loc[new_ord]
 
 class DatasetDiversityPlotter(DatasetPlotter):
     def bar(self, div_name, colour_name, title=None, fig_kwargs=None):
@@ -143,3 +151,44 @@ class VDJDatasetPlotter(DatasetPlotter):
         fig.set_tight_layout(True)
         df_title = "vdj box"
         self._handle_output(fig, df_title, title)
+
+class CloneDatasetPlotter(DatasetPlotter):
+    def hist(self, sam, colour_name, bins=10, title=None, fig_kwargs=None):
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        ax.hist(self.data.loc[sam], bins, color=self.sam_colour[colour_name].loc[sam], label=sam)
+        ax.set_xlabel("clone count")
+        ax.set_yscale("log")
+        ax.set_ylabel("frequency")
+        fig.set_tight_layout(True)
+        df_title = sam + " count hist"
+        self._handle_output(fig, df_title, title)
+
+    def heatmap(self, n_top_clones, cmap="binary", disp_cbar=True, title=None, fig_kwargs=None):
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        seq_tot = self.data.sum(axis=0)
+        top_clones = seq_tot.sort_values(ascending=False).index[:n_top_clones]
+        sns.heatmap(self.data[top_clones], vmin=0, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
+                    cbar=disp_cbar, cbar_kws={"shrink": 0.5}, xticklabels=True, yticklabels=True, norm=mpl.colors.LogNorm())
+        fig.set_tight_layout(True)
+        df_title = "top count heatmap"
+        self._handle_output(fig, df_title, title)
+
+    def lines(self, n_top_clones, colour_name, title=None, lgnd_flag=False, fig_kwargs=None):
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        for sam in self.data.index:
+            x = np.arange(n_top_clones) + 1
+            y = sorted(self.data.loc[sam].values, reverse=True)[:n_top_clones]
+            ax.plot(x, y, color=self.sam_colour[colour_name].loc[sam], label=sam)
+        ax.set_ylabel("Clone frequency")
+        ax.set_yscale("log")
+        ax.set_xlabel("Clone rank within sample")
+        ax.margins(x=0)
+        if lgnd_flag:
+            plt.legend()
+        fig.set_tight_layout(True)
+        df_title = "abundance lines"
+        self._handle_output(fig, df_title, title)
+        
