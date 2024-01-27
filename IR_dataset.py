@@ -178,7 +178,7 @@ class IRDataset:
             # needs to change to reflect sequences generally
             yield clones
 
-    def ds_diversity(self, d=None):
+    def ds_diversity(self, d=None, div_names=["richness", "shannon", "simpson"], q_vals=None):
         # downsample sequences, convert to kmers
         # first prep for downsampling
         # first do with just minimum value but need to add option
@@ -188,7 +188,7 @@ class IRDataset:
         for fp, name in zip(self.ds_paths, self.snames):
             ir = imrep.ImmuneRepertoire(fp, name, self.dfunc)
             ir.downsample(d)
-            div = ir.calc_div(["richness", "shannon", "simpson"])
+            div = ir.calc_div(div_names, q_vals=q_vals)
             yield pd.Series(div)
 
     def ds_vdj(self, seg_names, d=None):
@@ -216,7 +216,6 @@ class IRDataset:
                 lab_spec = lab_spec + "_"
             # do we also need naming funcs?
             kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
-            print(kwargs_name)
             if self.rs is not None:
                 kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
             if ds_name is None:
