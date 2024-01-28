@@ -17,12 +17,12 @@ class DatasetPlotter:
         else:
             self.sv_flag = False
             self.sv_path = None
-        self.data = data
         # sam_info is a metadata table, choose column to use for colour
         self.sam_info = sam_info
         # initialise colour df
         self.sam_colour = pd.DataFrame(index=self.sam_info.index, columns=[])
         self.sam_colour_dicts = {}
+        self.data = data
         # choose resolution
         self.resolution = resolution
         # choose output format
@@ -52,6 +52,15 @@ class DatasetPlotter:
             plt.show()
         plt.close()
 
+    def _annot_box(self, annot, x, y, ax):
+        u_x = np.unique(x)
+        h = y.max()/100
+        yb = y.max() + 2*h
+        ax.plot([u_x[0], u_x[0], u_x[1], u_x[1]], [yb, yb + h, yb + h, yb], lw=1, c='k')
+        # annotate in centre of bracket
+        ax.text((u_x[0] + u_x[1])/2, yb + h, annot, ha='center', va='bottom', color='k')
+        return ax
+
     def set_colour(self, sam_info_col, colour_dict=None):
         si = self.sam_info[sam_info_col]
         # if no colour specified
@@ -70,14 +79,14 @@ class DatasetPlotter:
         elif ord_func:
             new_ord = ord_func(self.sam_info)
         self.sam_info = self.sam_info.loc[new_ord]
-        self.data = self.data.loc[new_ord]
+        self.data = self.data[new_ord]
         self.sam_colour = self.sam_colour.loc[new_ord]
 
-class DatasetDiversityPlotter(DatasetPlotter):
+class DiversityDatasetPlotter(DatasetPlotter):
     def bar(self, div_name, colour_name, title=None, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        div_data = self.data[div_name]
+        div_data = self.data.loc[div_name]
         ax.bar(div_data.index, div_data.values, color=self.sam_colour[colour_name])
         ax.set_ylabel('Diversity')
         ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=90)
@@ -90,10 +99,12 @@ class DatasetDiversityPlotter(DatasetPlotter):
     def box(self, div_name, colour_name, title=None, fig_kwargs=None):
         # use seaborn, tidy data
         # need to combine sam info and data
-        info_data = pd.concat([self.data, self.sam_info], axis=1, join="inner")
+        info_data = pd.concat([self.data.T, self.sam_info], axis=1, join="inner")
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        ax = sns.boxplot(data=info_data, x=colour_name, y=div_name, hue=colour_name, palette=self.sam_colour_dicts[colour_name], ax=ax)
+        ax = sns.boxplot(data=info_data, x=colour_name, y=div_name, hue=colour_name,
+                         palette=self.sam_colour_dicts[colour_name], ax=ax)
+        ax = self._annot_box("*", info_data[colour_name], info_data[div_name], ax)
         fig.set_tight_layout(True)
         df_title = div_name + " box"
         self._handle_output(fig, df_title, title)
@@ -103,8 +114,8 @@ class DatasetDiversityPlotter(DatasetPlotter):
         # with hill we can also plot q values
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        for sam in self.data.index:
-            line = self.data[div_names].loc[sam]
+        for sam in self.data.columns:
+            line = self.data[sam].loc[div_names]
             ax.plot(line.values, color=self.sam_colour[colour_name].loc[sam], label=sam)
         fig.set_tight_layout(True)
         df_title = "diversity lines"
@@ -113,22 +124,17 @@ class DatasetDiversityPlotter(DatasetPlotter):
         self._handle_output(fig, df_title, title)
 
 class VDJDatasetPlotter(DatasetPlotter):
-    def heatmap(self, colour_name, cmap="binary", norm=True, vmax=1, disp_cbar=True, title=None, fig_kwargs=None):
-        fig_kwargs = self._empty_kwargs(fig_kwargs)
+    def __init__(self, data, sam_info, norm=True, resolution=1200, plt_format="png", save=None, glob_mpl_func=None):
+        super().__init__(data, sam_info, resolution, plt_format, save, glob_mpl_func)
         if norm:
-            # normalise- should be downsampled!
-            denom = int(np.unique([self.data.sum(axis=1).values]))
-            vdj = self.data/denom
-        else:
-            vdj = self.data
-            # overwrite default if not normalising
-            if vmax == 1:
-                vmax = self.data.max()
+            self.data = self.data/self.data.sum()#, axis="index")#/np.array(list(vdj_data.sum(axis=1).values))
+    def heatmap(self, colour_name, cmap="binary", vmax=None, disp_cbar=True, title=None, fig_kwargs=None):
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        ax = sns.heatmap(vdj, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
+        ax = sns.heatmap(self.data, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
                          cbar=disp_cbar, cbar_kws={"shrink": 0.5}, xticklabels=True, yticklabels=True)
-        for ytl, c in zip(ax.axes.get_yticklabels(), self.sam_colour[colour_name]):
-            ytl.set_color(c)
+        for xtl, c in zip(ax.axes.get_xticklabels(), self.sam_colour[colour_name]):
+            xtl.set_color(c)
         for _, spine in ax.spines.items():
             spine.set_visible(True)
         ax.tick_params(left=False, bottom=False)
@@ -136,10 +142,8 @@ class VDJDatasetPlotter(DatasetPlotter):
         df_title = "vdj heatmap"
         self._handle_output(fig, df_title, title)
 
-    def box(self, colour_name, norm=True, title=None, fig_kwargs=None):
-        vdj = self.data.melt(ignore_index=False, var_name="seg", value_name="count")
-        if norm:
-            vdj["count"] = vdj["count"]/np.unique(self.data.sum(axis=1).values)
+    def box(self, colour_name, annots=None, title=None, fig_kwargs=None):
+        vdj = self.data.T.melt(ignore_index=False, var_name="seg", value_name="count")
         vdj = vdj.reset_index(names="sample")
         ri_sam_info = self.sam_info.reset_index(names="sample")
         info_data = vdj.merge(ri_sam_info, left_on="sample", right_on="sample")
@@ -147,6 +151,10 @@ class VDJDatasetPlotter(DatasetPlotter):
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
         ax = sns.boxplot(data=info_data, x="seg", y="count", hue=colour_name,
                          palette=self.sam_colour_dicts[colour_name], ax=ax)
+        if annots is not None:
+            for i, annot in enumerate(annots):
+                seg_data = info_data[info_data["seg"] == info_data["seg"].iloc[i]]
+                ax = self._annot_box(annot, i+seg_data[colour_name]-1/2, seg_data["count"], ax)
         ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=90)
         fig.set_tight_layout(True)
         df_title = "vdj box"
@@ -156,7 +164,7 @@ class CloneDatasetPlotter(DatasetPlotter):
     def hist(self, sam, colour_name, bins=10, title=None, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        ax.hist(self.data.loc[sam], bins, color=self.sam_colour[colour_name].loc[sam], label=sam)
+        ax.hist(self.data[sam], bins, color=self.sam_colour[colour_name].loc[sam], label=sam)
         ax.set_xlabel("clone count")
         ax.set_yscale("log")
         ax.set_ylabel("frequency")
@@ -164,13 +172,19 @@ class CloneDatasetPlotter(DatasetPlotter):
         df_title = sam + " count hist"
         self._handle_output(fig, df_title, title)
 
-    def heatmap(self, n_top_clones, cmap="binary", disp_cbar=True, title=None, fig_kwargs=None):
+    def heatmap(self, n_top_clones, colour_name, cmap="binary", disp_cbar=True, title=None, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        seq_tot = self.data.sum(axis=0)
+        seq_tot = self.data.sum(axis=1)
         top_clones = seq_tot.sort_values(ascending=False).index[:n_top_clones]
-        sns.heatmap(self.data[top_clones], vmin=0, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
+        ax = sns.heatmap(self.data.loc[top_clones], vmin=0, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
                     cbar=disp_cbar, cbar_kws={"shrink": 0.5}, xticklabels=True, yticklabels=True, norm=mpl.colors.LogNorm())
+        for xtl, c in zip(ax.axes.get_xticklabels(), self.sam_colour[colour_name]):
+            xtl.set_color(c)
+        for _, spine in ax.spines.items():
+            spine.set_visible(True)
+        ax.tick_params(left=False, bottom=False)
+        ax.set(xlabel=None)
         fig.set_tight_layout(True)
         df_title = "top count heatmap"
         self._handle_output(fig, df_title, title)
@@ -178,9 +192,9 @@ class CloneDatasetPlotter(DatasetPlotter):
     def lines(self, n_top_clones, colour_name, title=None, lgnd_flag=False, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        for sam in self.data.index:
+        for sam in self.data.columns:
             x = np.arange(n_top_clones) + 1
-            y = sorted(self.data.loc[sam].values, reverse=True)[:n_top_clones]
+            y = sorted(self.data[sam].values, reverse=True)[:n_top_clones]
             ax.plot(x, y, color=self.sam_colour[colour_name].loc[sam], label=sam)
         ax.set_ylabel("Clone frequency")
         ax.set_yscale("log")
@@ -191,4 +205,3 @@ class CloneDatasetPlotter(DatasetPlotter):
         fig.set_tight_layout(True)
         df_title = "abundance lines"
         self._handle_output(fig, df_title, title)
-        
