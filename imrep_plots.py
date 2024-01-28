@@ -13,6 +13,8 @@ class DatasetPlotter:
         if save:
             self.sv_flag = True
             self.sv_path = save
+            if not os.path.exists(save):
+                os.mkdir(save)
         # if no path specified set save flag to false
         else:
             self.sv_flag = False
@@ -128,10 +130,13 @@ class VDJDatasetPlotter(DatasetPlotter):
         super().__init__(data, sam_info, resolution, plt_format, save, glob_mpl_func)
         if norm:
             self.data = self.data/self.data.sum()#, axis="index")#/np.array(list(vdj_data.sum(axis=1).values))
-    def heatmap(self, colour_name, cmap="binary", vmax=None, disp_cbar=True, title=None, fig_kwargs=None):
+    def heatmap(self, colour_name, annots=None, cmap="binary", vmax=None, disp_cbar=True, title=None, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        ax = sns.heatmap(self.data, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
+        vdj = self.data
+        if annots is not None:
+            vdj.index = [seg + a for a, seg in zip(annots, vdj.index)]
+        ax = sns.heatmap(vdj, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
                          cbar=disp_cbar, cbar_kws={"shrink": 0.5}, xticklabels=True, yticklabels=True)
         for xtl, c in zip(ax.axes.get_xticklabels(), self.sam_colour[colour_name]):
             xtl.set_color(c)
