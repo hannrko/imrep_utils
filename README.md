@@ -13,7 +13,7 @@ Python code that enables preprocessing of immune repertoire datasets for supervi
 ## Modules
 
 | Module               | Class(es)                                                                       |
-| .................... | ............................................................................... |
+| -------------------- | ------------------------------------------------------------------------------- |
 | aa_seq_utils.py      | ImSeq                                                                           |
 | diversity.py         | None, functions that calculate diversity                                        |
 | immune_repertoire.py | ImmuneRepertoire                                                                |
