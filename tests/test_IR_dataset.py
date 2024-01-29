@@ -12,7 +12,8 @@ def cdr3_extr(dpath):
     else:
         ccol = "templates"
     seqs = fmat.groupby("amino_acid").aggregate({ccol:"sum"})
-    return seqs.index, ["CDR3"], ["aaSeq"], seqs.values#seqs.rename(columns={ccol:"counts"},index={"amino_acid":"aa_cdr3"})
+    print(seqs.values)
+    return seqs.index, ["CDR3"], ["aaSeq"], np.squeeze(seqs.values)#seqs.rename(columns={ccol:"counts"},index={"amino_acid":"aa_cdr3"})
 
 def strip_allele(seg_str):
     return seg_str.split("*")[0]
@@ -32,11 +33,12 @@ def lab_extr(fn, tab_path):
     # look up sample name in table to get label
     return status_from_pn(tab.loc[fn.split(".")[0]])
 
-km_kw = {"ignore_dup_kmers": True}
-dpath = "C:/Users/Hannrk/imrep_utils/tests/emcmv_subset"
-emcmv_ird = ird.IRDataset(dpath, dfunc=cdr3_extr, lfunc=lab_extr, largs=("C:/Users/Hannrk/imrep_utils/tests/emcmv_subset_metadata/cohort1_sum.tsv",), rs=1)
-emcmv_ird.prepro("ds_kmers", dict(k=4, p=None, ignore_dup_kmers=True), export=True, json_dir="C:/Users/Hannrk/imrep_utils/tests/emcmv_subset_metadata")
+dpath = "emcmv_subset"
+emcmv_ird = ird.IRDataset(dpath, dfunc=cdr3_extr, lfunc=lab_extr, largs=("emcmv_subset_metadata/cohort1_sum.tsv",), rs=1)
+#emcmv_ird.prepro("ds_kmers", dict(k=4, p=None, ignore_dup_kmers=True), export=True, json_dir="C:/Users/Hannrk/imrep_utils/tests/emcmv_subset_metadata")
 
+#emcmv_ird.prepro("ds_clones", dict(), export=True, json_dir="emcmv_subset_metadata")
 
+emcmv_ird.prepro("raw_clones", dict(), export=True, json_dir="emcmv_subset_metadata")
 
 

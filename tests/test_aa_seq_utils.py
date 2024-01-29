@@ -9,7 +9,7 @@ import time
 
 s = ["CASSRPSRPLSMYF", "CASSRPSRPF", "CASSHHHHHHHRRRRRRYW", "CASSRPSRPLSF", "CASSRRRRRRPLSMYF"]
 start = time.time()
-test_kmers = kr.KmerRepertoire(3, s, kmer_kwargs={"ignore_dup_kmers": True})
+test_kmers = kr.KmerRepertoire(3, s, ignore_dup_kmers=True)
 end = time.time()
 print(end-start)
 # 0.0009968280792236328
@@ -21,3 +21,6 @@ d2 = {"A": 1, "B": 1, "C": 1, "D": 3}
 
 print(utils.dicts_to_dict([d1, d2]))
 print(utils.lists_to_dict(["A", "B", "C", "B", "C"], [1,1,1,2,4]))
+
+test_kmers = kr.KmerRepertoire(3, s, p=3, p_use_counts=True, ignore_dup_kmers=True)
+print(test_kmers.kmers)
