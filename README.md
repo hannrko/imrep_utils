@@ -1,12 +1,40 @@
 # Immune Repertoire Utilities
-Python code that enables preprocessing of immune repertoire datasets for downstream machine learning. Also, immune repertoire dataset plotting is included to allow for exploratory data analysis.
-IR_dataset.py is concerned with preprocessing and contains two classes: ImmuneRepertoire and IRDataset. IR_plots.py contains IRPlots, which contains plotting methods. The saved json output of IRDataset can be directly input to IRPlots.
-## ImmuneRepertoire
-This class loads a single sample and defines sample-wise preprocessing operations. An extraction function must be passed to take only the relevant information from the sample file.
-## IRDataset
-This class stores a series of instructions to initialise and preprocess a set of immune repertoire samples. It can finally return a matrix of dimensions (number of sequences or kmers)*(number of samples) with labels for each sample. A label extraction function must be specified.
-Only two preprocessing generators are available so far: raw_clones which only retrieves relevant information from samples, and ds_kmers, which downsamples sequences to a specified threshold or minimum depth in dataset, and splits sequences into short overlapping segments of length k which may be annotated positionally. 
-## IRPlots
-This class loads the json output from IRDataset and gets the proprocessed data stored with the original data. seq_inds should be set by the user depending on which columns of the preprocessed data contain sequence information rather than counts. colour_func allows the user to set colours which coould be done per sample or per label, since it takes label series as input which has sample name index.
-We can set class variables to determine whether plots should be saved or just opened, and whether legends should be used for some plots. A function can also be specified to modify the settings of matplotlib.
-seg_heatmap and seg_boxplots can only be used if there are gene segment columns in the preprocessed data.
+
+## Description
+Python code that enables preprocessing of immune repertoire datasets for supervised machine learning and statistical approaches, plus exploratory analysis.
+
+## Prerequisites
+* Python 3
+* NumPy
+* Pandas
+ 
+## Modules
+|Module|Class(es)|
+|......|.........|
+|aa_seq_utils.py|ImSeq|
+|diversity.py|None, functions that calculate diversity|
+|immune_repertoire.py|ImmuneRepertoire|
+|imrep_dataset.py|IRDataset|
+|imrep_plots.py|DatasetPlotter, DiversityDatasetPlotter, VDJDatasetPlotter, CloneDatasetPlotter|
+|kmer_repertoire.py|KmerRepertoire|
+|utils.py|None, utility functions|
+
+### ImmuneRepertoire
+Loads a single immune repertoire sample using a user-defined extraction function. Given a sample that contains n rows, extraction should return, in order:
+* An array of sequence information with shape n*1 (also accepts shape n) or n*m. Each of n rows could include a single nucleotide sequence or amino acid sequence, but V, D and J segment information could be included too. 
+* List of names of single or each m sequence data. For example, ["CDR3"] where m=1. 
+* List of types of single or each m sequence data. For example, ["aaSeq"] when extracting amino acid sequence with names ["CDR3"]. 
+* List or array of number of times each sequence/row entry is counted in sample.
+See imrep_extract/demo_extr.py.
+
+ImmuneRepertoire defines sample-wise preprocessing operations, indluding:
+* count_seqs- count the total sequences and total unique sequences in a sample. Calculate the proportion of the total repertoire that each sequence makes up.
+* downsample- randomly sample, without replacement, d sequences from repertoire. Optionally, overwrite the repertoire with this downsampled version.
+* calc_div- calculate diversity as per functions in diversity.py, including hill diversity. q_vals are only used in the case of hill diversity.
+* get_as_pandas- convert the repertoire to a pandas dataframe. 
+* calc_vdj_usage- calculate how many sequences in repertoire use different V, D, or J gene segments.
+
+
+
+
+

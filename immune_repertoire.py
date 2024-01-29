@@ -71,7 +71,6 @@ class ImmuneRepertoire:
         import pandas as pd
         # must turn back into list for automatic multiindex
         seq_info_t = list(np.array(self.seq_info).T)
-        print(seq_info_t)
         seq_ser = pd.Series(index=seq_info_t, data=self.seq_counts)
         seq_ser.index.names = self.seq_info_names
         return seq_ser
