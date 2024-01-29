@@ -7,20 +7,20 @@ Python code that enables preprocessing of immune repertoire datasets for supervi
 ## Prerequisites
 
 * Python 3
-* NumPy
+* Numpy
 * Pandas
  
 ## Modules
 
-|Module              |Class(es)                                                                      |
-|....................|...............................................................................|
-|aa_seq_utils.py     |ImSeq                                                                          |
-|diversity.py        |None, functions that calculate diversity                                       |
-|immune_repertoire.py|ImmuneRepertoire                                                               |
-|imrep_dataset.py    |IRDataset                                                                      |
-|imrep_plots.py      |DatasetPlotter, DiversityDatasetPlotter, VDJDatasetPlotter, CloneDatasetPlotter|
-|kmer_repertoire.py  |KmerRepertoire                                                                 |
-|utils.py            |None, utility functions                                                        |
+| Module               | Class(es)                                                                       |
+| .................... | ............................................................................... |
+| aa_seq_utils.py      | ImSeq                                                                           |
+| diversity.py         | None, functions that calculate diversity                                        |
+| immune_repertoire.py | ImmuneRepertoire                                                                |
+| imrep_dataset.py     | IRDataset                                                                       |
+| imrep_plots.py       | DatasetPlotter, DiversityDatasetPlotter, VDJDatasetPlotter, CloneDatasetPlotter |
+| kmer_repertoire.py   | KmerRepertoire                                                                  |
+| utils.py             | None, utility functions                                                         |
 
 ### ImmuneRepertoire
 
@@ -67,6 +67,9 @@ Using prepro() can execute different series of preprocessing instructions on the
 
 Optionally, we can export the preprocessed data as .csv to a directory related to ddir. We can also export a .json file containing labels, and a log of information about the preprocessing and export.
 
+## Exploratory analysis
+Dataset files obtained using IRDataset can be used by different relevant plotting classes below.
+
 ### DatasetPlotter
 Base class that defines saving and other plotting utilities. sam_info should be a dataframe containing labels. Multiple label definitions can be stored for flexibility.
 
@@ -82,11 +85,4 @@ Plot V, D or J segment usage using a heatmap or boxplot. Both can be annotated t
 
 ### CloneDatasetPlotter
 Using counts, plot abundance of top clones as lines, and count distribution of a single sample as a histogram. Sequence information of length one or more can be used to show the top clones in a dataset using a heatmap.
-
-
-
-
-
-
-
 
