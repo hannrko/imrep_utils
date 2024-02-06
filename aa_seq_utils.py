@@ -1,5 +1,5 @@
 import numpy as np
-import utils
+from . import utils
 
 class ImSeq:
     def __init__(self, seq, count=1):

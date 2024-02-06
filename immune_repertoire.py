@@ -1,6 +1,6 @@
 import numpy as np
 import random
-import diversity
+from . import diversity
 
 class ImmuneRepertoire:
     # defines a single immune repertoire sample and any preprocessing operations that can be applied as class functions

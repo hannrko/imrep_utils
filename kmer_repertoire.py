@@ -1,6 +1,6 @@
 import numpy as np
-import aa_seq_utils as aasu
-import utils
+from . import aa_seq_utils as aasu
+from . import utils
 
 class KmerRepertoire:
     def __init__(self, k, seqs, counts=None, trim=None, p=None, p_use_counts=False, p_counts_round_func=None,
