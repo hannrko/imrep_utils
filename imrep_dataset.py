@@ -139,6 +139,7 @@ class IRDataset:
         drp_ind = np.array(list(self.counts.values())) < d
         ds_drp = np.array(self.snames)[drp_ind]
         self.drop(ds_drp)
+        self.log["downsample"] = str(d)
         return d
 
     # generator function to get downsampled kmers
@@ -231,17 +232,31 @@ class IRDataset:
             vdj = ir.calc_vdj_usage(seg_names)
             yield vdj
 
+    def _handle_prepro_kwargs(self, prepro_func_key, kwargs):
+        from collections.abc import Iterable
+        if prepro_func_key[0:2] == "ds":
+            kwargs.update({"d": self.log["downsample"]})
+        if self.rs is not None:
+            kwargs.update({"rs": str(self.rs)})
+        # if any kwargs are list, combine strings
+        str_kwargs = []
+        for key, val in kwargs.items():
+            if isinstance(val, Iterable) and not isinstance(val, str):
+                val = "_".join(str(v) for v in val)
+            str_kwargs.append(key + str(val))
+        return "_".join(str_kwargs)
+
     def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, ds_name=None, del_path=None):
         gen_func = self.prepro_func_dict[prepro_func_key]
         self.log["prepro_func"] = prepro_func_key
-        # kwargs can be logged by generator function and extracted later
         prepro = self.gen2matrix(gen_func, kwargs)
         if export:
             # do we also need naming funcs?
             # do this within the preprocessing functions
-            kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
-            if self.rs is not None:
-                kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
+            #kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
+            #if self.rs is not None:
+                #kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
+            kwargs_name = self._handle_prepro_kwargs(prepro_func_key, kwargs)
             if ds_name is None:
                 ds_name = os.path.split(self.ddir)[1]
             prepro_name = f"{ds_name}_{prepro_func_key}_{kwargs_name}"
@@ -270,6 +285,8 @@ class IRDataset:
             json_fname = f"{prepro_name}.json"
             if json_dir is None:
                 json_dir = os.path.join(ddir_path, ddir_name + "_logs")
+            if not os.path.isdir(json_dir):
+                os.makedirs(json_dir)
             json_path = os.path.join(json_dir, json_fname)
             self.json_export(json_path)
         return json_fname
