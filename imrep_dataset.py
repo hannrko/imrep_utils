@@ -29,7 +29,7 @@ class IRDataset:
     # initialises immune repertoire dataset by getting paths to sample files and loading other necessary metadata
     # defines generator functions with series of steps to apply to repertoires
     # assembles dataset matrix by specifying generator function to execute in gen2matrix
-    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(), nargs=(), primary_lab=None, rs=None):
+    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(), nargs=(), primary_lab=None, rs=None, sort_flag=True):
         # ddir is the directory that stores repertoire files and nothing else
         # lfunc exracts labels from file names
         # dfunc extracts relevant information from repertoire files
@@ -47,7 +47,8 @@ class IRDataset:
         # we expect filenames to start with an identifier which contains letter(s) and a number
         # this should be separated from the rest of the filename with - or _, or be the entire filename
         # sort by letter part of identifier and numerical part, letter part may refer to label or sample or otherwise
-        self.ds_paths = sorted(self.ds_paths, key=extr_sam_info)
+        if sort_flag:
+            self.ds_paths = sorted(self.ds_paths, key=extr_sam_info)
         # assemble sample paths from files
         self.fnames = [os.path.split(dsp)[1] for dsp in self.ds_paths]
         self.nsam = len(self.ds_paths)
