@@ -14,7 +14,10 @@ class ImmuneRepertoire:
     def count_seqs(self):
         self.n_seq = len(self.seq_info)
         self.count = int(sum(self.seq_counts))
-        self.props = self.seq_counts/self.count
+        if self.count == 0:
+            self.props = self.seq_counts
+        else:
+            self.props = self.seq_counts/self.count
 
     def downsample(self, d, overwrite=True):
         # sample sequences without replacement
@@ -69,13 +72,14 @@ class ImmuneRepertoire:
 
     def get_as_pandas(self):
         import pandas as pd
-        # must turn back into list for automatic multiindex
-        seq_info_t = list(np.array(self.seq_info).T)
-        seq_ser = pd.Series(index=seq_info_t, data=self.seq_counts)
-        seq_ser.index.names = self.seq_info_names
-        return seq_ser
+        # construct index or multiindex
+        # can't use automatic multiindex as sample may be empty
+        if len(self.seq_info_names) > 1:
+            seq_info_t = pd.Index(self.seq_info, name=self.seq_info_names[0])
+        else:
+            seq_info_t = pd.MultiIndex.from_tuples(self.seq_info, names=self.seq_info_names)
+        return pd.Series(index=seq_info_t, data=self.seq_counts)
 
-    # want to also get vdj usage
     def calc_vdj_usage(self, vdj_names):
         seq_tab = self.get_as_pandas()
         # then calculate clones with unique combination of segments
