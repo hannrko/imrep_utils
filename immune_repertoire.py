@@ -74,7 +74,7 @@ class ImmuneRepertoire:
         import pandas as pd
         # construct index or multiindex
         # can't use automatic multiindex as sample may be empty
-        if len(self.seq_info_names) > 1:
+        if len(self.seq_info_names) == 1:
             seq_info_t = pd.Index(self.seq_info, name=self.seq_info_names[0])
         else:
             seq_info_t = pd.MultiIndex.from_tuples(self.seq_info, names=self.seq_info_names)

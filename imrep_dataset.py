@@ -181,7 +181,7 @@ class IRDataset:
     # generator function to downsample each repertoire
     # useful for compaing repertoires by their summaries
     def ds_clones(self, d=None):
-        # downsample sequences, convert to kmers
+        # downsample sequences
         # first prep for downsampling
         # first do with just minimum value but need to add option
         d = self.prep_dwnsmpl(d)
