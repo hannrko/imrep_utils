@@ -98,7 +98,7 @@ class DiversityDatasetPlotter(DatasetPlotter):
         self._handle_output(fig, df_title, title)
         # could split this up into single div plot, then multiple
 
-    def box(self, div_name, colour_name, title=None, fig_kwargs=None):
+    def box(self, div_name, colour_name, title=None, annot=None, fig_kwargs=None):
         # use seaborn, tidy data
         # need to combine sam info and data
         info_data = pd.concat([self.data.T, self.sam_info], axis=1, join="inner")
@@ -106,7 +106,8 @@ class DiversityDatasetPlotter(DatasetPlotter):
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
         ax = sns.boxplot(data=info_data, x=colour_name, y=div_name, hue=colour_name,
                          palette=self.sam_colour_dicts[colour_name], ax=ax)
-        ax = self._annot_box("*", info_data[colour_name], info_data[div_name], ax)
+        if annot is not None:
+            ax = self._annot_box(annot, info_data[colour_name], info_data[div_name], ax)
         fig.set_tight_layout(True)
         df_title = div_name + " box"
         self._handle_output(fig, df_title, title)
