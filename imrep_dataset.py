@@ -4,8 +4,8 @@ import json
 import pandas as pd
 import numpy as np
 import random
-from . import immune_repertoire as imrep
-from . import kmer_repertoire as krep
+import immune_repertoire as imrep # from .
+import kmer_repertoire as krep # from .
 
 def get_files(dir):
     return [os.path.join(dir, d) for d in os.listdir(dir) if os.path.isfile(os.path.join(dir, d))]
