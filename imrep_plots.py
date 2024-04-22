@@ -98,19 +98,30 @@ class DiversityDatasetPlotter(DatasetPlotter):
         self._handle_output(fig, df_title, title)
         # could split this up into single div plot, then multiple
 
-    def box(self, div_name, colour_name, title=None, annot=None, fig_kwargs=None):
+    def box(self, div_names, colour_name, title=None, annot=None, fig_kwargs=None):
         # use seaborn, tidy data
         # need to combine sam info and data
         info_data = pd.concat([self.data.T, self.sam_info], axis=1, join="inner")
         fig_kwargs = self._empty_kwargs(fig_kwargs)
-        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        if isinstance(div_names, str):
+            div_names = [div_names]
+        if annot is None:
+            annot = [None]*len(div_names)
+        fig, axs = plt.subplots(1, len(div_names), **fig_kwargs)
+        if len(div_names) == 1:
+            axs = [axs]
+        for i, div_name in enumerate(div_names):
+            axs[i] = self._box(info_data, colour_name, div_name, axs[i], annot[i])
+        fig.set_tight_layout(True)
+        df_title = div_name + " box"
+        self._handle_output(fig, df_title, title)
+
+    def _box(self, info_data, colour_name, div_name, ax, annot):
         ax = sns.boxplot(data=info_data, x=colour_name, y=div_name, hue=colour_name,
                          palette=self.sam_colour_dicts[colour_name], ax=ax)
         if annot is not None:
             ax = self._annot_box(annot, info_data[colour_name], info_data[div_name], ax)
-        fig.set_tight_layout(True)
-        df_title = div_name + " box"
-        self._handle_output(fig, df_title, title)
+        return ax
 
     def profile_lines(self, div_names, colour_name, legend_flag=False, title=None, fig_kwargs=None):
         # add something about whether this is hill divrsity or not- onyl recommended for hill
