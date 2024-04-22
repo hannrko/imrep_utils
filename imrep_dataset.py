@@ -205,7 +205,7 @@ class IRDataset:
             # needs to change to reflect sequences generally
             yield clones
 
-    def ds_diversity(self, d=None, div_names=["richness", "shannon", "simpson"], q_vals=None):
+    def ds_diversity(self, d=None, div_names=["richness", "shannon", "inv_simpson"], q_vals=None):
         # downsample sequences, convert to kmers
         # first prep for downsampling
         # first do with just minimum value but need to add option
@@ -246,6 +246,20 @@ class IRDataset:
                 val = "_".join(str(v) for v in val)
             str_kwargs.append(key + str(val))
         return "_".join(str_kwargs)
+
+    def count(self, export=True, ds_name=None):
+        ds_count = self.get_counts()
+        if export:
+            ddir_path, ddir_name = os.path.split(self.ddir)
+            prepro_dir = os.path.join(ddir_path, ddir_name + "_preprocessed")
+            if not os.path.isdir(prepro_dir):
+                os.makedirs(prepro_dir)
+            if ds_name is None:
+                ds_name = os.path.split(self.ddir)[1]
+            count_path = os.path.join(prepro_dir, ds_name+"_counts.csv")
+            pd.Series(ds_count).to_csv(count_path)
+        return ds_count
+
 
     def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, ds_name=None, del_path=None):
         gen_func = self.prepro_func_dict[prepro_func_key]
