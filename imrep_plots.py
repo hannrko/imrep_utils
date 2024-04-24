@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib as mpl
+import math
 
 class DatasetPlotter:
     def __init__(self, data, sam_info, resolution=1200, plt_format="png", save=None, glob_mpl_func=None):
@@ -83,6 +84,44 @@ class DatasetPlotter:
         self.sam_info = self.sam_info.loc[new_ord]
         self.data = self.data[new_ord]
         self.sam_colour = self.sam_colour.loc[new_ord]
+class DepthDatasetPlotter(DatasetPlotter):
+    def hist(self, nbins=10 ,xlog=False, ylog=False, title=None, fig_kwargs=None):
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        if xlog:
+            ax.set_xscale("log")
+            m = np.amax(self.data.values)
+            ord = np.log10(m)
+            mord = math.ceil(ord)
+            bins = np.logspace(0, stop=mord, num=nbins)#10 ** (np.arange(0, 8))
+        else:
+            bins = nbins
+        ax.hist(self.data, log=ylog, bins=bins)
+        df_title = "count histogram"
+        self._handle_output(fig, df_title, title)
+
+    def samples_dwn(self, colour_name, fig_kwargs=None, title=None):
+        fig_kwargs = self._empty_kwargs(fig_kwargs)
+        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        print(self.data)
+        ds = self.data[self.data.columns[0]]
+        x = ds.sort_values(ascending=True).values
+        cls = np.unique(self.sam_info[colour_name])
+        #clss = [ for cls in ]
+        bl = np.zeros(len(x))
+        for c in cls:
+            print(c, bl)
+            single_cls = ds[self.sam_info[colour_name]==c]
+            y = np.array([sum(single_cls >= count) for count in x]) + bl
+            ax.stairs(y, np.concatenate(([0],x)), fill=True, baseline=bl, color=self.sam_colour_dicts[colour_name][c])
+            bl = bl + y
+        ax.set_xscale("log")
+        ax.margins(x=0)
+        ax.axhline(y=len(x))
+
+        df_title = "count bar downsampling"
+        self._handle_output(fig, df_title, title)
+
 
 class DiversityDatasetPlotter(DatasetPlotter):
     def bar(self, div_name, colour_name, title=None, fig_kwargs=None):
@@ -113,7 +152,7 @@ class DiversityDatasetPlotter(DatasetPlotter):
         for i, div_name in enumerate(div_names):
             axs[i] = self._box(info_data, colour_name, div_name, axs[i], annot[i])
         fig.set_tight_layout(True)
-        df_title = div_name + " box"
+        df_title = " ".join(div_names) + " boxplot"
         self._handle_output(fig, df_title, title)
 
     def _box(self, info_data, colour_name, div_name, ax, annot):
@@ -142,7 +181,10 @@ class VDJDatasetPlotter(DatasetPlotter):
         super().__init__(data, sam_info, resolution, plt_format, save, glob_mpl_func)
         if norm:
             self.data = self.data/self.data.sum()#, axis="index")#/np.array(list(vdj_data.sum(axis=1).values))
-    def heatmap(self, colour_name, annots=None, cmap="binary", vmax=None, disp_cbar=True, title=None, fig_kwargs=None):
+        seg_ord = self.data.sum(axis=1).sort_values(ascending=False)
+        print(self.data)
+        self.data = self.data.loc[seg_ord.index]
+    def heatmap(self, colour_name, type, annots=None, cmap="binary", vmax=None, disp_cbar=True, title=None, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
         vdj = self.data
@@ -156,10 +198,10 @@ class VDJDatasetPlotter(DatasetPlotter):
             spine.set_visible(True)
         ax.tick_params(left=False, bottom=False)
         ax.set(xlabel=None)
-        df_title = "vdj heatmap"
+        df_title = f"{type} segment heatmap"
         self._handle_output(fig, df_title, title)
 
-    def box(self, colour_name, annots=None, title=None, fig_kwargs=None):
+    def box(self, colour_name, type, annots=None, title=None, fig_kwargs=None):
         vdj = self.data.T.melt(ignore_index=False, var_name="seg", value_name="count")
         vdj = vdj.reset_index(names="sample")
         ri_sam_info = self.sam_info.reset_index(names="sample")
@@ -174,7 +216,7 @@ class VDJDatasetPlotter(DatasetPlotter):
                 ax = self._annot_box(annot, i+seg_data[colour_name]-1/2, seg_data["count"], ax)
         ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=90)
         fig.set_tight_layout(True)
-        df_title = "vdj box"
+        df_title = f"{type} segment boxplot"
         self._handle_output(fig, df_title, title)
 
 class CloneDatasetPlotter(DatasetPlotter):
