@@ -258,6 +258,13 @@ class IRDataset:
                 ds_name = os.path.split(self.ddir)[1]
             count_path = os.path.join(prepro_dir, ds_name+"_counts.csv")
             pd.Series(ds_count).to_csv(count_path)
+            lab_dir = os.path.join(ddir_path, "metadata")
+            if not os.path.isdir(lab_dir):
+                os.makedirs(lab_dir)
+            pl = "" if self.primary_lab is None else "_" + self.primary_lab
+            lab_name = ds_name + "_counts" + pl + "_labels.csv"
+            lab_path = os.path.join(lab_dir, lab_name)
+            self.labs.to_csv(lab_path)
         return ds_count
 
 
@@ -291,7 +298,7 @@ class IRDataset:
             if not os.path.isdir(lab_dir):
                 os.makedirs(lab_dir)
             pl = "" if self.primary_lab is None else "_" + self.primary_lab
-            lab_name = ds_name + pl + "_labels.csv"
+            lab_name = prepro_name + pl + "_labels.csv"
             lab_path = os.path.join(lab_dir, lab_name)
             self.labs.to_csv(lab_path)
             self.log["lab_path"] = self.del_path(lab_path, del_path)
