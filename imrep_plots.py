@@ -7,7 +7,7 @@ import matplotlib as mpl
 import math
 
 class DatasetPlotter:
-    def __init__(self, data, sam_info, resolution=1200, plt_format="png", save=None, glob_mpl_func=None):
+    def __init__(self, data, sam_info, resolution=600, plt_format="png", save=None, glob_mpl_func=None):
         if glob_mpl_func:
             glob_mpl_func()
         # if we want to save figures save should be path to folder
@@ -102,6 +102,7 @@ class DepthDatasetPlotter(DatasetPlotter):
         ax.hist(self.data, log=ylog, bins=bins, color=colour)
         ax.set_xlabel("Counts")
         ax.set_ylabel("Frequency")
+        fig.set_tight_layout(True)
         df_title = "count histogram"
         self._handle_output(fig, df_title, title)
 
@@ -122,7 +123,8 @@ class DepthDatasetPlotter(DatasetPlotter):
             ax.set_xscale("log")
         ax.margins(x=0)
         ax.axhline(y=len(x), color="k")
-        ax.legend()
+        legend = ax.legend(frameon=False)
+        legend.get_frame().set_facecolor('none')
         if dwn_thresh is not None:
             ax.axvline(x=dwn_thresh, color=dwn_c)
             # this doesn't work when the threshold comes from a different dataset!
@@ -135,6 +137,7 @@ class DepthDatasetPlotter(DatasetPlotter):
         ax.set_ylim((0, len(x)))
         ax.set_xlabel("Counts")
         ax.set_ylabel("Samples")
+        fig.set_tight_layout(True)
         df_title = "count bar downsampling"
         self._handle_output(fig, df_title, title)
 
@@ -189,7 +192,8 @@ class DiversityDatasetPlotter(DatasetPlotter):
             axs[i].set_xticklabels([self.sam_class_name_dicts[colour_name][lab] for lab in list(axs[i].get_xticks())])
             axs[i].set_xlabel("")
         diy_leg = [mpl.patches.Patch(color=c, label=self.sam_class_name_dicts[colour_name][ln]) for ln, c in self.sam_colour_dicts[colour_name].items()]
-        fig.legend(handles=diy_leg)
+        legend = axs[i].legend(handles=diy_leg, frameon=False)
+        legend.get_frame().set_facecolor('none')
         fig.set_tight_layout(True)
         df_title = " ".join(div_names) + " boxplot"
         self._handle_output(fig, df_title, title)
@@ -212,7 +216,7 @@ class DiversityDatasetPlotter(DatasetPlotter):
         fig.set_tight_layout(True)
         df_title = "diversity lines"
         if legend_flag:
-            ax.legend()
+            ax.legend(frameon=False)
         self._handle_output(fig, df_title, title)
 
 class VDJDatasetPlotter(DatasetPlotter):
@@ -237,6 +241,7 @@ class VDJDatasetPlotter(DatasetPlotter):
             spine.set_visible(True)
         ax.tick_params(left=False, bottom=False)
         ax.set(xlabel=None)
+        fig.set_tight_layout(True)
         df_title = f"{type} segment heatmap"
         self._handle_output(fig, df_title, title)
 
@@ -247,7 +252,7 @@ class VDJDatasetPlotter(DatasetPlotter):
         info_data = vdj.merge(ri_sam_info, left_on="sample", right_on="sample")
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        ax = sns.boxplot(data=info_data, x="seg", y="count", hue=colour_name, legend=False,
+        ax = sns.boxplot(data=info_data, x="count", y="seg", hue=colour_name, legend=False,
                          palette=self.sam_colour_dicts[colour_name], ax=ax)
         if annots is not None:
             for i, annot in enumerate(annots):
@@ -255,10 +260,11 @@ class VDJDatasetPlotter(DatasetPlotter):
                 ax = self._annot_box(annot, i+seg_data[colour_name]-1/2, seg_data["count"], ax)
         diy_leg = [mpl.patches.Patch(color=c, label=self.sam_class_name_dicts[colour_name][ln]) for ln, c in
                    self.sam_colour_dicts[colour_name].items()]
-        fig.legend(handles=diy_leg)
-        ax.set_xticks(ax.get_xticks(), ax.get_xticklabels(), rotation=90)
-        ax.set_ylabel("Proportion of usage within repertoire")
-        ax.set_xlabel(f"{type} gene segment")
+        legend = ax.legend(handles=diy_leg, frameon=False)
+        legend.get_frame().set_facecolor('none')
+        #ax.set_yticks(ax.get_yticks(), ax.get_yticklabels(), rotation=90)
+        ax.set_xlabel("Usage proportion")
+        ax.set_ylabel(f"{type} gene segment")
         fig.set_tight_layout(True)
         df_title = f"{type} segment boxplot"
         self._handle_output(fig, df_title, title)
@@ -304,7 +310,7 @@ class CloneDatasetPlotter(DatasetPlotter):
         ax.set_xlabel("Clone rank within sample")
         ax.margins(x=0)
         if lgnd_flag:
-            plt.legend()
+            ax.legend(loc=4)
         fig.set_tight_layout(True)
         df_title = "abundance lines"
         self._handle_output(fig, df_title, title)
