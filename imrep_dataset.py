@@ -4,8 +4,8 @@ import json
 import pandas as pd
 import numpy as np
 import random
-from . import immune_repertoire as imrep
-from . import kmer_repertoire as krep
+import immune_repertoire as imrep # from .
+import kmer_repertoire as krep # from .
 
 def get_files(dir):
     return [os.path.join(dir, d) for d in os.listdir(dir) if os.path.isfile(os.path.join(dir, d))]
@@ -21,11 +21,15 @@ def extr_sam_info(fp):
     mlab = re.findall(r'[A-Za-z]+', snm)[0]
     return mlab, num
 
+def remove_file_ext(fn):
+    return fn.split(".")[0]
+
+
 class IRDataset:
     # initialises immune repertoire dataset by getting paths to sample files and loading other necessary metadata
     # defines generator functions with series of steps to apply to repertoires
     # assembles dataset matrix by specifying generator function to execute in gen2matrix
-    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(), nargs=(), rs=None):
+    def __init__(self, ddir, lfunc, dfunc, nfunc=None, largs=(), nargs=(), primary_lab=None, rs=None, sort_flag=True):
         # ddir is the directory that stores repertoire files and nothing else
         # lfunc exracts labels from file names
         # dfunc extracts relevant information from repertoire files
@@ -43,7 +47,8 @@ class IRDataset:
         # we expect filenames to start with an identifier which contains letter(s) and a number
         # this should be separated from the rest of the filename with - or _, or be the entire filename
         # sort by letter part of identifier and numerical part, letter part may refer to label or sample or otherwise
-        self.ds_paths = sorted(self.ds_paths, key=extr_sam_info)
+        if sort_flag:
+            self.ds_paths = sorted(self.ds_paths, key=extr_sam_info)
         # assemble sample paths from files
         self.fnames = [os.path.split(dsp)[1] for dsp in self.ds_paths]
         self.nsam = len(self.ds_paths)
@@ -56,23 +61,41 @@ class IRDataset:
         self.rs = rs
         if self.rs:
             random.seed(self.rs)
-        self.dropped = []
-        self.drpd_labs = {}
-        self.drpd_counts = {}
+        self.log = {}
+        self._init_log()
         # finally get all labels
-        self.labs = pd.Series(index=self.fnames, data=[self.lfunc(fn, *largs) for fn in self.fnames]).replace('nan', np.NaN)
+        self.labs = self.make_labels(lfunc, largs)
         # if a name extractor is specified, get the names, otherwise remove file extensions
-        if nfunc:
-            self.snames = np.array([nfunc(fn, *nargs) for fn in self.fnames])
-        else:
-            self.snames = np.array([fn.split(".")[0] for fn in self.fnames])
-        self.labs.index = self.snames
+        if nfunc is None:
+            nfunc = remove_file_ext
+        self.snames = self.make_names(nfunc, nargs)
+        self.labs["Names"] = self.snames
         # drop samples with undefined labels
-        self.drop(self.labs[self.labs.isna()].index)
+        self.primary_lab = primary_lab
+        if self.primary_lab is not None:
+            sn_missing = self.labs["Names"].values[self.labs[self.primary_lab].isna()]
+            self.drop(sn_missing)
         self.prepro_func_dict = {"ds_kmers": self.ds_kmers, "raw_kmers": self.raw_kmers,
                                  "ds_clones": self.ds_clones, "raw_clones": self.raw_clones,
                                  "ds_diversity": self.ds_diversity, "ds_vdj": self.ds_vdj}
-        #self.pos = {0: None, 1: ["start", "middle", "end"]}
+
+    def _init_log(self):
+        # initialise empty data structures in case we drop multiple times
+        self.log["dropped"] = []
+        self.log["dropped_plabs"] = {}
+        self.log["dropped_counts"] = {}
+
+    def make_labels(self, lfunc, largs=None):
+        if largs is None:
+            largs = ()
+        labels = lfunc(self.fnames, *largs)
+        return labels
+
+    def make_names(self, nfunc, nargs=None):
+        if nargs is None:
+            nargs = ()
+        snames = np.array([nfunc(fn, *nargs) for fn in self.fnames])
+        return snames
 
     def get_counts(self):
         # dict from generator that executes get_count method for all repertoires
@@ -86,19 +109,22 @@ class IRDataset:
         # get indices of samples to drop
         idx_del = [np.argwhere(self.snames == sn)[0] for sn in sam_names]
         # add removed samples to dropped samples list
-        self.dropped.extend(sam_names)
+        self.log["dropped"].extend(sam_names)
         # then overwrite sample names, file names and file paths lists
         self.fnames = np.delete(self.fnames, idx_del)
         self.ds_paths = np.delete(self.ds_paths, idx_del)
         self.snames = np.delete(self.snames, idx_del)
         # save labels of dropped samples
-        self.drpd_labs.update(self.labs[sam_names].to_dict())
+        if self.primary_lab is not None:
+            pln_to_drop = self.labs.index[[ln in sam_names for ln in self.labs["Names"]]]
+            self.log["dropped_plabs"].update(self.labs[self.primary_lab].loc[pln_to_drop].to_dict())
         # overwrite labels
-        self.labs = self.labs[self.snames]
+        # do we definitely want to do this? means saving labels every time...
+        self.labs = self.labs[[ln in self.snames for ln in self.labs["Names"]]]
         # if we've calculated counts we should delete relevant entries
         if self.count_flag:
             # we should also have a dropped counts attribute to make sure we understand why they were dropped
-            self.drpd_counts.update(dict((sn, self.counts[sn]) for sn in sam_names))
+            self.log["dropped_counts"].update(dict((sn, self.counts[sn]) for sn in sam_names))
             for sn in sam_names:
                 self.counts.pop(sn)
 
@@ -114,6 +140,7 @@ class IRDataset:
         drp_ind = np.array(list(self.counts.values())) < d
         ds_drp = np.array(self.snames)[drp_ind]
         self.drop(ds_drp)
+        self.log["downsample"] = str(d)
         return d
 
     # generator function to get downsampled kmers
@@ -154,7 +181,7 @@ class IRDataset:
     # generator function to downsample each repertoire
     # useful for compaing repertoires by their summaries
     def ds_clones(self, d=None):
-        # downsample sequences, convert to kmers
+        # downsample sequences
         # first prep for downsampling
         # first do with just minimum value but need to add option
         d = self.prep_dwnsmpl(d)
@@ -178,7 +205,7 @@ class IRDataset:
             # needs to change to reflect sequences generally
             yield clones
 
-    def ds_diversity(self, d=None, div_names=["richness", "shannon", "simpson"], q_vals=None):
+    def ds_diversity(self, d=None, div_names=["richness", "shannon", "inv_simpson"], q_vals=None):
         # downsample sequences, convert to kmers
         # first prep for downsampling
         # first do with just minimum value but need to add option
@@ -206,23 +233,56 @@ class IRDataset:
             vdj = ir.calc_vdj_usage(seg_names)
             yield vdj
 
-    def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, ds_name=None, lab_spec=None):
-        gen_func = self.prepro_func_dict[prepro_func_key]
-        prepro = self.gen2matrix(gen_func, kwargs)
+    def _handle_prepro_kwargs(self, prepro_func_key, kwargs):
+        from collections.abc import Iterable
+        if prepro_func_key[0:2] == "ds":
+            kwargs.update({"d": self.log["downsample"]})
+        if self.rs is not None:
+            kwargs.update({"rs": str(self.rs)})
+        # if any kwargs are list, combine strings
+        str_kwargs = []
+        for key, val in kwargs.items():
+            if isinstance(val, Iterable) and not isinstance(val, str):
+                val = "_".join(str(v) for v in val)
+            str_kwargs.append(key + str(val))
+        return "_".join(str_kwargs)
+
+    def count(self, export=True, ds_name=None):
+        ds_count = self.get_counts()
         if export:
-            if lab_spec is None:
-                lab_spec = ""
-            else:
-                lab_spec = lab_spec + "_"
-            # do we also need naming funcs?
-            kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
-            if self.rs is not None:
-                kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
+            ddir_path, ddir_name = os.path.split(self.ddir)
+            prepro_dir = os.path.join(ddir_path, ddir_name + "_preprocessed")
+            if not os.path.isdir(prepro_dir):
+                os.makedirs(prepro_dir)
             if ds_name is None:
                 ds_name = os.path.split(self.ddir)[1]
-            prepro_name = f"{ds_name}_{lab_spec}{prepro_func_key}_{kwargs_name}"
+            count_path = os.path.join(prepro_dir, ds_name+"_counts.csv")
+            pd.Series(ds_count).to_csv(count_path)
+            lab_dir = os.path.join(ddir_path, "metadata")
+            if not os.path.isdir(lab_dir):
+                os.makedirs(lab_dir)
+            pl = "" if self.primary_lab is None else "_" + self.primary_lab
+            lab_name = ds_name + "_counts" + pl + "_labels.csv"
+            lab_path = os.path.join(lab_dir, lab_name)
+            self.labs.to_csv(lab_path)
+        return ds_count
+
+
+    def prepro(self, prepro_func_key, kwargs, export=True, json_dir=None, ds_name=None, del_path=None):
+        gen_func = self.prepro_func_dict[prepro_func_key]
+        self.log["prepro_func"] = prepro_func_key
+        prepro = self.gen2matrix(gen_func, kwargs)
+        if export:
+            # do we also need naming funcs?
+            # do this within the preprocessing functions
+            #kwargs_name = "_".join([key + str(val) for key, val in kwargs.items()])
+            #if self.rs is not None:
+                #kwargs_name = "rs" + str(self.rs) + "_" + kwargs_name
+            kwargs_name = self._handle_prepro_kwargs(prepro_func_key, kwargs)
+            if ds_name is None:
+                ds_name = os.path.split(self.ddir)[1]
+            prepro_name = f"{ds_name}_{prepro_func_key}_{kwargs_name}"
             # save matrix to location, store location
-            #prepro_dir = os.path.join(self.ddir, "preprocessed")
             ddir_path, ddir_name = os.path.split(self.ddir)
             prepro_dir = os.path.join(ddir_path, ddir_name + "_preprocessed")
             if not os.path.isdir(prepro_dir):
@@ -230,12 +290,33 @@ class IRDataset:
             prepro_fname = prepro_name + ".csv"
             prepro_path = os.path.join(prepro_dir, prepro_fname)
             prepro.to_csv(prepro_path)
+            self.log["prepro_path"] = self.del_path(prepro_path, del_path)
+            self.log["prepro_name"] = prepro_name
+            self.log["prepro_fname"] = prepro_fname
+            # labels
+            lab_dir = os.path.join(ddir_path, "metadata")
+            if not os.path.isdir(lab_dir):
+                os.makedirs(lab_dir)
+            pl = "" if self.primary_lab is None else "_" + self.primary_lab
+            lab_name = prepro_name + pl + "_labels.csv"
+            lab_path = os.path.join(lab_dir, lab_name)
+            self.labs.to_csv(lab_path)
+            self.log["lab_path"] = self.del_path(lab_path, del_path)
+            self.log["lab_name"] = lab_name
+            # log
             json_fname = f"{prepro_name}.json"
             if json_dir is None:
-                json_dir = ""
+                json_dir = os.path.join(ddir_path, ddir_name + "_logs")
+            if not os.path.isdir(json_dir):
+                os.makedirs(json_dir)
             json_path = os.path.join(json_dir, json_fname)
-            self.json_export(json_path, prepro_path, prepro_fname, prepro_name)
+            self.json_export(json_path)
         return json_fname
+
+    def del_path(self, full_path, del_path):
+        if del_path is None:
+            del_path = ""
+        return os.path.relpath(full_path, del_path)
 
     def gen2matrix(self, gf, kwargs):
         # produce matrix containing resulting data
@@ -246,14 +327,7 @@ class IRDataset:
         prepro = outmat.fillna(0)
         return prepro
 
-    def json_export(self, svpath, prepro_path, prepro_fname, prepro_name):
+    def json_export(self, svpath):
         # store all information we need about the preprocessing as a json file
-        # make everything python-built-in types
-        sv_dict = dict(labs=self.labs.to_dict(), prepro_path=prepro_path,
-                       prepro_name=prepro_name, prepro_fname = prepro_fname,
-                       dropped=self.dropped, dropped_labs=self.drpd_labs)
-        if self.count_flag:
-            sv_dict["raw_counts"] = self.counts
-            sv_dict["dropped_counts"] = self.drpd_counts
         with open(svpath, 'w', encoding='utf-8') as f:
-            json.dump(sv_dict, f, ensure_ascii=False, indent=4)
+            json.dump(self.log, f, ensure_ascii=False, indent=4)
