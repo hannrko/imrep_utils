@@ -89,7 +89,7 @@ class DatasetPlotter:
         self.sam_colour = self.sam_colour.loc[new_ord]
 
 class DepthDatasetPlotter(DatasetPlotter):
-    def hist(self, nbins=10, colour="k", xlog=False, ylog=False, title=None, fig_kwargs=None):
+    def hist(self, colour_name, nbins=10, xlog=False, ylog=False, title=None, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
         if xlog:
@@ -99,9 +99,17 @@ class DepthDatasetPlotter(DatasetPlotter):
             bins = np.logspace(start=mn, stop=mx, num=nbins)
         else:
             bins = nbins
-        ax.hist(self.data, log=ylog, bins=bins, color=colour)
+        for cls in np.unique(self.sam_info[colour_name]):
+            ds = self.data[self.data.columns[0]]
+            single_cls = ds[self.sam_info[colour_name] == cls]
+            ax.hist(single_cls, log=ylog, bins=bins, color=self.sam_colour_dicts[colour_name][cls], alpha=0.5,
+                    label=self.sam_class_name_dicts[colour_name][cls])
         ax.set_xlabel("Counts")
         ax.set_ylabel("Frequency")
+        fig.legend(*ax.get_legend_handles_labels(), loc='outside lower right', mode=None, borderaxespad=0,
+                   frameon=False, ncol=len(np.unique(self.sam_info[colour_name])))
+        #legend = ax.legend(frameon=False)
+        #legend.get_frame().set_facecolor('none')
         fig.set_tight_layout(True)
         df_title = "count histogram"
         self._handle_output(fig, df_title, title)
@@ -123,8 +131,11 @@ class DepthDatasetPlotter(DatasetPlotter):
             ax.set_xscale("log")
         ax.margins(x=0)
         ax.axhline(y=len(x), color="k")
-        legend = ax.legend(frameon=False)
-        legend.get_frame().set_facecolor('none')
+        #fig.legend(*ax.get_legend_handles_labels(), loc='outside lower center', mode="expand", borderaxespad=0, frameon=False)
+        #legend = ax.legend(frameon=False)
+        #legend.get_frame().set_facecolor('none')
+        fig.legend(*ax.get_legend_handles_labels(), loc='outside lower right', mode=None, borderaxespad=0,
+                   frameon=False, ncol=len(np.unique(self.sam_info[colour_name])))
         if dwn_thresh is not None:
             ax.axvline(x=dwn_thresh, color=dwn_c)
             # this doesn't work when the threshold comes from a different dataset!
@@ -132,29 +143,36 @@ class DepthDatasetPlotter(DatasetPlotter):
             ax.axhline(y=dwn_samples, color=dwn_c)
             ax.scatter(dwn_thresh, dwn_samples, marker="x", color="k")
             ax.annotate(f"({dwn_thresh}, {dwn_samples})", xy=(dwn_thresh, dwn_samples),
-                        xytext=(50, 50), textcoords='offset pixels')
+                        xytext=(20, -60), textcoords='offset pixels')
         ax.set_yticks(list(ax.get_yticks()) + [len(x)])
         ax.set_ylim((0, len(x)))
-        ax.set_xlabel("Counts")
-        ax.set_ylabel("Samples")
+        ax.set_xlabel("CDR3 frequency")
+        ax.set_ylabel("Number of samples")
         fig.set_tight_layout(True)
         df_title = "count bar downsampling"
         self._handle_output(fig, df_title, title)
 
-    def table(self, cls_name, dwn_thresh):
+    def table(self, cls_name, dwn_thresh, name):
         ds = self.data[self.data.columns[0]]
         classes = np.unique(self.sam_info[cls_name])
         ds_cls = [ds[self.sam_info[cls_name]==cls] for cls in classes]
         all_ds = [ds, *ds_cls]
+        max = [np.max(dst) for dst in all_ds]
+        min = [np.min(dst) for dst in all_ds]
         mean = [np.mean(dst) for dst in all_ds]
         median = [np.median(dst) for dst in all_ds]
         count = [len(dst) for dst in all_ds]
+        ds_all = np.repeat(dwn_thresh, len(all_ds))
         ds_count = [len(dst[dst >= dwn_thresh]) for dst in all_ds]
-        tab = pd.DataFrame(data=np.column_stack((mean, median, count, ds_count)),
-                           columns=["Mean counts", "Median counts", "Samples", "Samples after downsampling"],
-                           index=["Total", *[self.sam_class_name_dicts[cls_name][cls] for cls in classes]])
-        with open(os.path.join(self.sv_path, "count_tab.tex"), "w") as f:
-            f.write(tab.to_latex())
+        raw_tab = pd.DataFrame(data=np.column_stack((max, min, mean, median, count)),
+                           columns=["Max counts","Min counts","Mean counts", "Median counts", "Samples"],
+                           index=["Total", *[self.sam_class_name_dicts[cls_name][cls] for cls in classes]]).T
+        ds_tab = pd.DataFrame(data=np.column_stack((ds_all, ds_all, ds_all, ds_all, ds_count)),
+                           columns=["Max counts","Min counts","Mean counts", "Median counts", "Samples"],
+                           index=["Total", *[self.sam_class_name_dicts[cls_name][cls] for cls in classes]]).T
+        tab = pd.concat([raw_tab, ds_tab], keys=["Raw", "Downsampled"])
+        with open(os.path.join(self.sv_path, f"{name}_count_tab.tex"), "w") as f:
+            f.write(tab.to_latex(float_format="{:.1f}".format))
 
 
 
@@ -192,15 +210,17 @@ class DiversityDatasetPlotter(DatasetPlotter):
             axs[i].set_xticklabels([self.sam_class_name_dicts[colour_name][lab] for lab in list(axs[i].get_xticks())])
             axs[i].set_xlabel("")
         diy_leg = [mpl.patches.Patch(color=c, label=self.sam_class_name_dicts[colour_name][ln]) for ln, c in self.sam_colour_dicts[colour_name].items()]
-        legend = axs[i].legend(handles=diy_leg, frameon=False)
-        legend.get_frame().set_facecolor('none')
+        #legend = axs[i].legend(handles=diy_leg, frameon=False)
+        #legend.get_frame().set_facecolor('none')
+        fig.legend(handles=diy_leg, loc='outside lower right', mode=None, borderaxespad=0,
+                   frameon=False, ncol=len(np.unique(self.sam_info[colour_name])))
         fig.set_tight_layout(True)
         df_title = " ".join(div_names) + " boxplot"
         self._handle_output(fig, df_title, title)
 
     def _box(self, info_data, colour_name, div_name, ax, annot):
         ax = sns.boxplot(data=info_data, x=colour_name, y=div_name, hue=colour_name,
-                         palette=self.sam_colour_dicts[colour_name], legend=False, ax=ax)
+                         palette=self.sam_colour_dicts[colour_name], legend=False, flierprops={"marker":"x"}, ax=ax)
         if annot is not None:
             ax = self._annot_box(annot, info_data[colour_name], info_data[div_name], ax)
         return ax
@@ -222,15 +242,24 @@ class DiversityDatasetPlotter(DatasetPlotter):
 class VDJDatasetPlotter(DatasetPlotter):
     def __init__(self, data, sam_info, norm=True, resolution=1200, plt_format="png", save=None, glob_mpl_func=None):
         super().__init__(data, sam_info, resolution, plt_format, save, glob_mpl_func)
+        self.other_segs = {}
         if norm:
-            self.data = self.data/self.data.sum()#, axis="index")#/np.array(list(vdj_data.sum(axis=1).values))
-        seg_ord = self.data.sum(axis=1).sort_values(ascending=False)
-        self.data = self.data.loc[seg_ord.index]
+            for seg in data.keys():
+                data[seg] = data[seg]/data[seg].sum()
+                single_count = data[seg].index[data[seg].max(axis=1)<0.01] # data[seg].index[data[seg].astype(bool).sum(axis=1) < 5]
+                if len(single_count) > 1:
+                    self.other_segs[seg] = list(single_count)
+                    data[seg].loc["other"] = data[seg].loc[single_count].sum()
+                    data[seg] = data[seg].drop(labels=single_count, axis=0)
+                seg_ord = data[seg].sum(axis=1).sort_values(ascending=False)
+                data[seg] = data[seg].loc[seg_ord.index]
 
-    def heatmap(self, colour_name, type, annots=None, cmap="binary", vmax=None, disp_cbar=True, title=None, fig_kwargs=None):
+        self.data = data
+
+    def heatmap(self, seg, colour_name, type, annots=None, cmap="binary", vmax=None, disp_cbar=True, title=None, fig_kwargs=None):
         fig_kwargs = self._empty_kwargs(fig_kwargs)
         fig, ax = plt.subplots(1, 1, **fig_kwargs)
-        vdj = self.data
+        vdj = self.data[seg]
         if annots is not None:
             vdj.index = [seg + a for a, seg in zip(annots, vdj.index)]
         ax = sns.heatmap(vdj, vmin=0, vmax=vmax, cmap=cmap, linewidth=0.5, square=True, linecolor=(0, 0, 0),
@@ -245,29 +274,56 @@ class VDJDatasetPlotter(DatasetPlotter):
         df_title = f"{type} segment heatmap"
         self._handle_output(fig, df_title, title)
 
-    def box(self, colour_name, type, annots=None, title=None, fig_kwargs=None):
-        vdj = self.data.T.melt(ignore_index=False, var_name="seg", value_name="count")
+    def _box(self, seg, colour_name, annots=None, ax=None):
+        vdj = self.data[seg].T.melt(ignore_index=False, var_name="seg", value_name="count")
         vdj = vdj.reset_index(names="sample")
         ri_sam_info = self.sam_info.reset_index(names="sample")
         info_data = vdj.merge(ri_sam_info, left_on="sample", right_on="sample")
-        fig_kwargs = self._empty_kwargs(fig_kwargs)
-        fig, ax = plt.subplots(1, 1, **fig_kwargs)
+        #fig_kwargs = self._empty_kwargs(fig_kwargs)
+        #fig, ax = plt.subplots(1, 1, **fig_kwargs)
         ax = sns.boxplot(data=info_data, x="count", y="seg", hue=colour_name, legend=False,
-                         palette=self.sam_colour_dicts[colour_name], ax=ax)
+                         palette=self.sam_colour_dicts[colour_name], flierprops={"markersize": 3.0
+                                                                                 , "marker":"x"}, ax=ax)
         if annots is not None:
             for i, annot in enumerate(annots):
                 seg_data = info_data[info_data["seg"] == info_data["seg"].iloc[i]]
                 ax = self._annot_box(annot, i+seg_data[colour_name]-1/2, seg_data["count"], ax)
+        #diy_leg = [mpl.patches.Patch(color=c, label=self.sam_class_name_dicts[colour_name][ln]) for ln, c in
+                  # self.sam_colour_dicts[colour_name].items()]
+        #legend = ax.legend(handles=diy_leg, frameon=False)
+        #legend.get_frame().set_facecolor('none')
+        #ax.set_yticks(ax.get_yticks(), ax.get_yticklabels(), rotation=90)
+        #ax.set_xlabel("Usage proportion")
+        #ax.set_ylabel(f"{type} gene segment")
+        #fig.set_tight_layout(True)
+        #df_title = f"{type} segment boxplot"
+        #self._handle_output(fig, df_title, title)
+        return ax
+
+    def vj_box(self, colour_name, annots=None, title=None, fig_kwargs=None):
+        if fig_kwargs is not None:
+            if "figsize" in fig_kwargs.keys():
+                mx_ent = max(len(self.data["V"]), len(self.data["J"]))
+                height = fig_kwargs["figsize"][0]*(4+mx_ent)/40
+                fig_kwargs["figsize"] = (fig_kwargs["figsize"][0], height)
+        fig, axs = plt.subplots(1, 2, sharex=True, **fig_kwargs)
+        axs[0] = self._box("V", colour_name,  annots=None, ax=axs[0])
+        axs[1] = self._box("J", colour_name, annots=None, ax=axs[1])
         diy_leg = [mpl.patches.Patch(color=c, label=self.sam_class_name_dicts[colour_name][ln]) for ln, c in
                    self.sam_colour_dicts[colour_name].items()]
-        legend = ax.legend(handles=diy_leg, frameon=False)
-        legend.get_frame().set_facecolor('none')
-        #ax.set_yticks(ax.get_yticks(), ax.get_yticklabels(), rotation=90)
-        ax.set_xlabel("Usage proportion")
-        ax.set_ylabel(f"{type} gene segment")
+        #legend = axs[1].legend(handles=diy_leg, frameon=False)
+        #legend.get_frame().set_facecolor('none')
+        fig.legend(handles=diy_leg, loc='outside lower right', mode=None, borderaxespad=0,
+                   frameon=False, ncol=len(np.unique(self.sam_info[colour_name])))
+        # ax.set_yticks(ax.get_yticks(), ax.get_yticklabels(), rotation=90)
+        axs[0].set_xlabel("Usage proportion")
+        axs[1].set_xlabel("Usage proportion")
+        axs[0].set_ylabel(f"V gene segment")
+        axs[1].set_ylabel(f"J gene segment")
         fig.set_tight_layout(True)
-        df_title = f"{type} segment boxplot"
+        df_title = f"VJ segment boxplot"
         self._handle_output(fig, df_title, title)
+        return self.other_segs
 
 class CloneDatasetPlotter(DatasetPlotter):
     def hist(self, sam, colour_name, bins=10, title=None, fig_kwargs=None):
