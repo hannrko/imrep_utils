@@ -2,7 +2,7 @@
 
 ## Description
 
-Python code that enables preprocessing of immune repertoire datasets for supervised machine learning and statistical approaches, plus exploratory analysis.
+Python code for preprocessing of immune repertoire datasets for supervised machine learning and statistical approaches, plus exploratory analysis.
 
 ## Prerequisites
 
@@ -21,6 +21,43 @@ Python code that enables preprocessing of immune repertoire datasets for supervi
 | imrep_plots.py       | DatasetPlotter, DiversityDatasetPlotter, VDJDatasetPlotter, CloneDatasetPlotter |
 | kmer_repertoire.py   | KmerRepertoire                                                                  |
 | utils.py             | None, utility functions                                                         |
+
+### IRDataset
+
+Main class to preprocess a dataset. 
+
+IRDataset class loads information for dataset ready to read and preprocess it, and has args:
+- `ddir`: string path or list of paths. Directory or directories to load dataset from. Files can be in any readable format if paired with a suitable dfunc. Hidden files starting '.' are ignored.
+- `dfunc`: a user-written function that extracts relevant information from a file to pass to ImmuneRepertoire. For example, it may read a table with .txt extension, extract CDR3 amino acid column and corresponding counts. imrep_extract/demo_extr.py provides an example of the output format required from dfunc.
+- `lfunc`: a user-written function to extract a pandas DataFrame of sample labels as columns from the list of file names. Main input is file name, and other arguments can be passed as `largs` if required
+- `nfunc`: can optionally be used to name samples using file name, nargs can optionally be supplied as additional arguments
+- `primary_lab`: optional, can exclude samples from dataset if missing a value for the corresponding column in `lfunc` output
+- `rs`: set random seed for any preprocessing operations involving random sampling- downsampling
+- `sort_flag`: if True (default), sort sample-wise information to produce ordered output matrices based on file alphabetical and numerical order.
+
+prepro() can execute different preprocessing functions on the dataset.
+A prepro_func_key is used to define the series of preprocessing steps, as below. kwargs should be a dictionary containing the arguments listed below for each prepro_key.
+
+* `raw_kmers` - just convert the dataset into kmers. This is only appropriate when a single amino acid sequence is extracted through dfunc.
+  - `k`- length of kmer
+  - `trim`- how many positions to trim from each sequence end before converting to kmers
+  - `p`- used to create positional kmers. None for non-positional, or list of annotations e.g. ["start", "middle", "end"]
+  - `p_use_counts`- False, recreate counting of positional kmers as in Foers et al. J. Pathol. 2021
+  - `p_counts_round_func` - default None, allow different rounding functions in above 
+  - `ignore_dup_kmers`: default False, if True only count duplicate kmers from same sequence once
+* `ds_kmers` - downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset, and convert to kmers.  Again, this is only appropriate when a single amino acid sequence is extracted through dfunc.
+  - `d` is the number of sequences to downsample to. if None (default), set it automatically using sample with fewest sequences
+  - other args as for `raw_kmers`
+* `raw_clones` - extract raw information as extracted by ImmuneRepertoire. Suitable for mixed sequence information such as CDR3 amino acid sequence with V and J gene segments.
+* `ds_clones` - extract information from ImmuneRepertoire as above, but downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset.
+  - `d` defined above
+* `ds_diversity` - downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset, and calculate any of richness, shannon, simpson, and hill diversity in parallel. Downsampling must be applied because diversity calculations can be biased by variable depth.
+  - `div_names`: list of names of diversity indices to calculate, default ["richness", "shannon", "inv_simpson"], can include "richness", "shannon", "inv_simpson", "hill"
+  - `q_vals`: default None, list of ints used to set q for Hill diversity
+* `ds_vdj` - downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset, and calculate V, D or J segment usage if any are extracted by ImmuneReperoire.
+  - `seq_names`: names of V, D or J segments to calculate usage of depending on column names of gene segments supplied in dfunc output
+Using `export=True` we can export the preprocessed data as .csv to a directory related to ddir. 
+We can also export a .json file containing labels, and a log of information about the preprocessing and export.
 
 ### ImmuneRepertoire
 
@@ -53,19 +90,6 @@ Loads a single amino acid sequence, with respecive count that has a default of 1
 
 Loads a list of sequences and respective counts, and use ImSeq to convert to a repertoire of kmers that may come from trimmed sequences. This repertoire may be converted to a pandas series.
 
-### IRDataset
-
-From a directory or list of directories, stores instructions to access a dataset. dfunc defines what information is extracted from a file by ImmuneRepertoire. Instructions to label the datasets based on filenames and other arguments passed as largs are defined through lfunc. nfunc has a similar functionality but defining sample names, which can be useful in converting a long name to a simpler one. 
-
-Using prepro() can execute different series of preprocessing instructions on the dataset, including:
-* raw_kmers - just convert the dataset into kmers. This is only appropriate when a single amino acid sequence is extracted through dfunc.
-* ds_kmers - downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset, and convert to kmers.  Again, this is only appropriate when a single amino acid sequence is extracted through dfunc.
-* raw_clones - extract raw information as extracted by ImmuneRepertoire. Suitable for mixed sequence information such as CDR3 amino acid sequence with V and J gene segments.
-* ds_clones - extract information from ImmuneRepertoire as above, but downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset.
-* ds_diversity - downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset, and calculate any of richness, shannon, simpson, and hill diversity in parallel. Downsampling must be applied because diversity calculations can be biased by variable depth.
-* ds_vdj - downsample the dataset to a user-defined threshold, or to the smallest sample size in the dataset, and calculate V, D or J segment usage if any are extracted by ImmuneReperoire.
-
-Optionally, we can export the preprocessed data as .csv to a directory related to ddir. We can also export a .json file containing labels, and a log of information about the preprocessing and export.
 
 ## Exploratory analysis
 Dataset files obtained using IRDataset can be used by different relevant plotting classes below.
